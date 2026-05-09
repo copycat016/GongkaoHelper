@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "api_key": "你的百度OCR_API_Key",
+  "secret_key": "你的百度OCR_Secret_Key",
+  "monthly_limit": 200,
+  "engine_limits": {
+    "accurate": 100,
+    "accurate_basic": 200,
+    "essay_handwriting": 200,
+    "general": 1000,
+    "general_basic": 200,
+    "handwriting": 200
+  },
+  "timeout_seconds": 30,
+  "source": "local_file"
+}

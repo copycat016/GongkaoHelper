@@ -1,0 +1,534 @@
+/* Page-specific layout helpers */
+
+.dashboard-task-card .ant-list-item {
+  padding: 10px 0;
+}
+
+.dashboard-tools .ant-card-head {
+  min-height: 48px;
+}
+
+.dashboard-tool-btn.ant-btn {
+  height: 58px;
+  justify-content: flex-start;
+  padding-inline: 16px;
+}
+
+.dashboard-tool-btn.ant-btn > span:not(.anticon) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  line-height: 1.2;
+}
+
+.dashboard-tool-btn small {
+  color: var(--text-blue-gray);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dashboard-completed .ant-list-item {
+  padding: 8px 0;
+  color: var(--text-blue-gray);
+}
+
+.log-filter-card .ant-card-body {
+  padding: 18px 20px;
+}
+
+.log-filter-actions {
+  width: 100%;
+  justify-content: flex-end;
+}
+
+.log-filter-actions .ant-picker {
+  min-width: 180px;
+}
+
+.calendar-card .ant-picker-calendar-date-content {
+  min-height: 58px;
+}
+
+.calendar-events {
+  display: grid;
+  gap: 3px;
+  padding-top: 4px;
+}
+
+.calendar-events .ant-badge {
+  max-width: 100%;
+}
+
+.calendar-events .ant-badge-status-text {
+  max-width: calc(100% - 18px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.calendar-side,
+.music-controls,
+.essay-result-stack,
+.essay-action-row,
+.ocr-upload-stack,
+.backup-panel {
+  width: 100%;
+}
+
+.ocr-upload-stack {
+  margin-bottom: 14px;
+}
+
+.settings-sub-card.ant-card {
+  margin-bottom: 16px;
+  background: color-mix(in srgb, var(--light-blue) 20%, rgba(255, 255, 255, 0.72));
+  box-shadow: none;
+}
+
+.ocr-quota-card {
+  height: 100%;
+  padding: 14px;
+  border: 1px solid rgba(139, 179, 218, 0.2);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.54);
+}
+
+.ocr-quota-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--deep-blue-gray);
+}
+
+.ocr-quota-card .ant-progress {
+  margin: 8px 0 12px;
+}
+
+.pdf-test-pages {
+  margin-top: 14px;
+}
+
+.pdf-test-page.ant-list-item {
+  display: block;
+  padding: 14px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(139, 179, 218, 0.18);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.pdf-test-page-title {
+  margin-bottom: 8px;
+  color: var(--deep-blue-gray);
+  font-weight: 900;
+}
+
+.pdf-test-page pre {
+  max-height: 340px;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--deep-blue-gray);
+  font-family: "SF Mono", "Cascadia Mono", "Roboto Mono", ui-monospace, monospace;
+  line-height: 1.65;
+}
+
+.music-player-card .ant-card-body {
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 18px;
+}
+
+.music-now h2 {
+  margin: 14px 0 6px;
+  color: var(--deep-blue-gray);
+  font-size: clamp(26px, 4vw, 44px);
+  line-height: 1.1;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.music-now p {
+  margin: 0;
+  color: var(--text-blue-gray);
+  line-height: 1.7;
+}
+
+.music-time-row {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-blue-gray);
+  font-family: "SF Mono", "Cascadia Mono", "Roboto Mono", ui-monospace, monospace;
+  font-size: 13px;
+}
+
+.music-volume {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-blue-gray);
+}
+
+.music-track-list {
+  margin-top: 14px;
+}
+
+.music-track {
+  cursor: pointer;
+  padding-inline: 10px !important;
+  border-radius: 14px;
+}
+
+.music-track:hover,
+.music-track.active {
+  background: color-mix(in srgb, var(--light-blue) 62%, transparent);
+}
+
+.global-music-bar {
+  position: sticky;
+  bottom: 16px;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) auto minmax(220px, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  width: min(1180px, calc(100% - 56px));
+  margin: 0 auto 16px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 18px 46px rgba(70, 118, 168, 0.18);
+}
+
+.global-music-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.global-music-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 14px;
+  color: white;
+  background: linear-gradient(135deg, var(--primary-blue), var(--accent-purple));
+}
+
+.global-music-meta {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.global-music-meta strong,
+.global-music-meta span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.global-music-meta strong {
+  color: var(--deep-blue-gray);
+}
+
+.global-music-meta span,
+.global-music-progress span {
+  color: var(--text-blue-gray);
+  font-size: 12px;
+}
+
+.global-music-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.global-music-progress {
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  gap: 8px;
+}
+
+.global-music-progress .ant-slider {
+  margin: 0;
+}
+
+.global-music-tag.ant-tag {
+  margin: 0;
+  border: none;
+  border-radius: 999px;
+  color: var(--deep-blue-gray);
+  background: color-mix(in srgb, var(--light-blue) 70%, transparent);
+  font-weight: 800;
+}
+
+@media (max-width: 900px) {
+  .global-music-bar {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: auto;
+    grid-template-columns: 1fr auto;
+  }
+
+  .global-music-progress,
+  .global-music-tag {
+    display: none;
+  }
+}
+
+@media (max-width: 1199px) {
+  .dashboard-tool-btn.ant-btn {
+    height: 54px;
+  }
+
+  .calendar-card .ant-picker-calendar-date-content {
+    min-height: 46px;
+  }
+
+  .music-player-card .ant-card-body {
+    min-height: 360px;
+  }
+
+  .global-music-bar {
+    grid-template-columns: minmax(160px, 1fr) auto minmax(180px, 0.9fr);
+    width: min(960px, calc(100% - 44px));
+  }
+
+  .global-music-tag {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .dashboard-tool-btn.ant-btn {
+    height: 52px;
+    padding-inline: 14px;
+  }
+
+  .dashboard-tool-btn small {
+    display: none;
+  }
+
+  .log-filter-actions {
+    justify-content: flex-start;
+  }
+
+  .log-filter-actions .ant-picker {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .calendar-card .ant-picker-calendar-date-content {
+    min-height: 34px;
+  }
+
+  .calendar-events .ant-badge-status-text {
+    max-width: 74px;
+  }
+
+  .ocr-quota-card {
+    padding: 12px;
+  }
+
+  .music-player-card .ant-card-body {
+    min-height: 300px;
+  }
+
+  .music-now h2 {
+    font-size: 26px;
+  }
+
+  .global-music-main {
+    min-width: 0;
+  }
+
+  .global-music-controls {
+    gap: 4px;
+  }
+}
+
+.essay-action-row {
+  justify-content: flex-end;
+}
+
+.essay-steps.ant-steps {
+  padding: 18px 20px;
+  border: 1px solid rgba(139, 179, 218, 0.22);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, var(--card-opacity));
+  backdrop-filter: blur(18px);
+}
+
+.essay-upload-form {
+  margin-top: 16px;
+}
+
+.essay-document.ant-list-item {
+  cursor: pointer;
+  padding-inline: 10px;
+  border-radius: 14px;
+}
+
+.essay-document.ant-list-item:hover,
+.essay-document.ant-list-item.active {
+  background: color-mix(in srgb, var(--light-blue) 62%, transparent);
+}
+
+.essay-operation.ant-list-item {
+  padding: 9px 10px;
+  border-radius: 14px;
+}
+
+.essay-operation.running {
+  background: color-mix(in srgb, var(--light-blue) 42%, transparent);
+}
+
+.essay-operation.success {
+  background: rgba(232, 248, 240, 0.64);
+}
+
+.essay-operation.error {
+  background: rgba(255, 236, 238, 0.72);
+}
+
+.essay-mini-stat .ant-card-body {
+  padding: 14px;
+}
+
+.essay-mini-stat .ant-statistic-title {
+  color: var(--text-blue-gray);
+  font-weight: 800;
+}
+
+.essay-mini-stat .ant-statistic-content {
+  color: var(--deep-blue-gray);
+  font-weight: 900;
+}
+
+.essay-chunk-text {
+  max-height: 260px;
+  overflow: auto;
+  color: var(--deep-blue-gray);
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.essay-chunk-list {
+  margin-top: 14px;
+}
+
+.essay-chunk-card.ant-list-item {
+  display: block;
+  padding: 14px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(139, 179, 218, 0.18);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.essay-chunk-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  color: var(--text-blue-gray);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.essay-review-result {
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid rgba(139, 179, 218, 0.2);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.essay-review-result p {
+  margin: 10px 0;
+  color: var(--text-blue-gray);
+  line-height: 1.75;
+}
+
+.essay-score-card .ant-statistic-title {
+  color: var(--text-blue-gray);
+  font-weight: 700;
+}
+
+.essay-score-card .ant-statistic-content {
+  color: var(--deep-blue-gray);
+  font-weight: 900;
+}
+
+.essay-result-summary {
+  color: var(--text-blue-gray);
+  line-height: 1.75;
+}
+
+.essay-dimension-list {
+  display: grid;
+  gap: 14px;
+}
+
+.essay-dimension {
+  padding: 12px 14px;
+  border: 1px solid rgba(139, 179, 218, 0.18);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.essay-dimension-head {
+  display: flex;
+  justify-content: space-between;
+  color: var(--deep-blue-gray);
+}
+
+.essay-dimension p {
+  margin: 8px 0 0;
+  color: var(--text-blue-gray);
+  line-height: 1.65;
+}
+
+.essay-check-icon {
+  color: var(--primary-blue);
+  margin-right: 8px;
+}
+
+.essay-section-title {
+  margin: 0 0 8px;
+  color: var(--deep-blue-gray);
+  font-size: 16px;
+}
+
+.essay-optimized-answer {
+  margin: 0;
+  color: var(--text-blue-gray);
+  line-height: 1.85;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 768px) {
+  .log-filter-actions {
+    justify-content: flex-start;
+  }
+
+  .study-center-tabs .ant-tabs-tab {
+    padding-inline: 8px;
+  }
+}

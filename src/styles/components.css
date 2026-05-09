@@ -1,0 +1,249 @@
+/* Shared app components and Ant Design skin */
+
+.glass-card.ant-card,
+.fresh-card.ant-card {
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, var(--card-opacity));
+  backdrop-filter: blur(18px);
+  box-shadow: 0 16px 42px rgba(70, 118, 168, 0.12);
+  overflow: hidden;
+}
+
+.glass-card .ant-card-head,
+.fresh-card .ant-card-head {
+  min-height: 50px;
+  border-bottom-color: rgba(106, 167, 232, 0.12);
+  color: var(--deep-blue-gray);
+  font-weight: 900;
+}
+
+.glass-card .ant-card-body,
+.fresh-card .ant-card-body {
+  padding: 20px;
+}
+
+.soft-button.ant-btn,
+.fresh-light-btn.ant-btn,
+.pomo-apply-btn.ant-btn,
+.pomo-soft-btn.ant-btn {
+  border-color: rgba(106, 167, 232, 0.22);
+  color: var(--deep-blue-gray);
+  background: rgba(255, 255, 255, 0.72);
+  font-weight: 800;
+}
+
+.soft-button.ant-btn:hover,
+.fresh-light-btn.ant-btn:hover,
+.pomo-apply-btn.ant-btn:hover,
+.pomo-soft-btn.ant-btn:hover {
+  border-color: color-mix(in srgb, var(--primary-blue) 42%, transparent) !important;
+  color: var(--deep-blue-gray) !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+}
+
+.primary-button.ant-btn,
+.fresh-primary-btn.ant-btn {
+  border-color: var(--primary-blue);
+  background: linear-gradient(135deg, var(--primary-blue), #8dbcf0);
+  box-shadow: 0 12px 28px rgba(106, 167, 232, 0.28);
+  font-weight: 900;
+}
+
+.primary-button.ant-btn:hover,
+.fresh-primary-btn.ant-btn:hover {
+  border-color: #5a9cde !important;
+  background: linear-gradient(135deg, #5f9fe2, #86b8ef) !important;
+}
+
+.ant-btn,
+.ant-input,
+.ant-input-number,
+.ant-picker,
+.ant-select .ant-select-selector,
+.ant-upload-drag,
+.ant-segmented {
+  border-radius: 12px !important;
+}
+
+.ant-input,
+.ant-input-number,
+.ant-picker,
+.ant-select .ant-select-selector {
+  border-color: rgba(106, 167, 232, 0.18) !important;
+  background: rgba(255, 255, 255, 0.74) !important;
+}
+
+.ant-input:hover,
+.ant-input-number:hover,
+.ant-picker:hover,
+.ant-select:hover .ant-select-selector {
+  border-color: color-mix(in srgb, var(--primary-blue) 48%, transparent) !important;
+}
+
+.ant-input:focus,
+.ant-input-focused,
+.ant-input-number-focused,
+.ant-picker-focused,
+.ant-select-focused .ant-select-selector {
+  border-color: var(--primary-blue) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-blue) 15%, transparent) !important;
+}
+
+.ant-table {
+  color: var(--deep-blue-gray);
+  background: transparent;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th {
+  border-bottom-color: rgba(106, 167, 232, 0.14);
+  color: var(--text-blue-gray);
+  background: color-mix(in srgb, var(--light-blue) 42%, white);
+  font-weight: 900;
+}
+
+.ant-table-wrapper .ant-table-tbody > tr > td {
+  border-bottom-color: rgba(106, 167, 232, 0.1);
+}
+
+.ant-table-wrapper .ant-table-tbody > tr:hover > td {
+  background: color-mix(in srgb, var(--light-blue) 38%, transparent) !important;
+}
+
+.ant-tabs .ant-tabs-tab {
+  color: var(--text-blue-gray);
+  font-weight: 800;
+}
+
+.ant-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--primary-blue) !important;
+}
+
+.ant-tabs .ant-tabs-ink-bar {
+  background: var(--primary-blue);
+}
+
+.app-section-tabs > .ant-tabs-nav,
+.ai-settings-tabs > .ant-tabs-nav,
+.study-center-tabs > .ant-tabs-nav {
+  margin-bottom: 18px;
+  padding: 7px;
+  border: 1px solid rgba(139, 179, 218, 0.22);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, var(--card-opacity));
+  backdrop-filter: blur(18px);
+  box-shadow: 0 12px 34px rgba(91, 126, 166, 0.1);
+}
+
+.app-section-tabs > .ant-tabs-nav::before,
+.ai-settings-tabs > .ant-tabs-nav::before,
+.study-center-tabs > .ant-tabs-nav::before {
+  display: none;
+}
+
+.app-section-tabs .ant-tabs-nav-list,
+.ai-settings-tabs .ant-tabs-nav-list,
+.study-center-tabs .ant-tabs-nav-list {
+  width: 100%;
+  gap: 6px;
+}
+
+.app-section-tabs .ant-tabs-tab,
+.ai-settings-tabs .ant-tabs-tab,
+.study-center-tabs .ant-tabs-tab {
+  flex: 1;
+  justify-content: center;
+  margin: 0 !important;
+  padding: 10px 12px;
+  border-radius: 13px;
+  color: var(--text-blue-gray);
+  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.app-section-tabs .ant-tabs-tab-active,
+.ai-settings-tabs .ant-tabs-tab-active,
+.study-center-tabs .ant-tabs-tab-active {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--light-blue) 76%, white), rgba(255, 255, 255, 0.86));
+  box-shadow: 0 8px 18px rgba(106, 167, 232, 0.14);
+}
+
+.app-section-tabs .ant-tabs-ink-bar,
+.ai-settings-tabs .ant-tabs-ink-bar,
+.study-center-tabs .ant-tabs-ink-bar {
+  display: none;
+}
+
+.full-input {
+  width: 100%;
+}
+
+@media (max-width: 1199px) {
+  .glass-card.ant-card,
+  .fresh-card.ant-card {
+    border-radius: 16px;
+  }
+
+  .glass-card .ant-card-body,
+  .fresh-card .ant-card-body {
+    padding: 18px;
+  }
+
+  .app-section-tabs > .ant-tabs-nav,
+  .ai-settings-tabs > .ant-tabs-nav,
+  .study-center-tabs > .ant-tabs-nav {
+    overflow-x: auto;
+  }
+
+  .app-section-tabs .ant-tabs-nav-list,
+  .ai-settings-tabs .ant-tabs-nav-list,
+  .study-center-tabs .ant-tabs-nav-list {
+    min-width: max-content;
+  }
+
+  .app-section-tabs .ant-tabs-tab,
+  .ai-settings-tabs .ant-tabs-tab,
+  .study-center-tabs .ant-tabs-tab {
+    flex: 0 0 auto;
+    min-width: 128px;
+  }
+}
+
+@media (max-width: 767px) {
+  .glass-card.ant-card,
+  .fresh-card.ant-card {
+    border-radius: 14px;
+  }
+
+  .glass-card .ant-card-head,
+  .fresh-card .ant-card-head {
+    min-height: 46px;
+    padding: 0 14px;
+  }
+
+  .glass-card .ant-card-body,
+  .fresh-card .ant-card-body {
+    padding: 14px;
+  }
+
+  .ant-table-wrapper {
+    overflow-x: auto;
+  }
+
+  .ant-modal {
+    max-width: calc(100vw - 24px);
+  }
+
+  .app-section-tabs > .ant-tabs-nav,
+  .ai-settings-tabs > .ant-tabs-nav,
+  .study-center-tabs > .ant-tabs-nav {
+    border-radius: 16px;
+    padding: 5px;
+  }
+
+  .app-section-tabs .ant-tabs-tab,
+  .ai-settings-tabs .ant-tabs-tab,
+  .study-center-tabs .ant-tabs-tab {
+    min-width: 112px;
+    padding: 9px 10px;
+  }
+}
