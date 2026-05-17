@@ -142,6 +142,7 @@ func pagesToEssayText(pages []PDFTextPage) string {
 }
 
 func normalizePDFText(text string) string {
+	text = strings.ReplaceAll(text, "\\n", "\n")
 	text = strings.ReplaceAll(text, "\r\n", "\n")
 	text = strings.ReplaceAll(text, "\r", "\n")
 	text = sanitizePostgresText(text)
@@ -150,7 +151,6 @@ func normalizePDFText(text string) string {
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
-			normalized = append(normalized, "")
 			continue
 		}
 		normalized = append(normalized, line)

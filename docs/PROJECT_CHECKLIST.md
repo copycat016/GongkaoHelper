@@ -46,15 +46,15 @@ curl http://localhost:21080/api/db/ping
 ## 3. 当前主功能
 
 - 首页总览：今日任务、工具入口、统计、已完成任务。
-- OCR 识题：前端流程骨架，后端待接 PaddleOCR / VL 模型。
-- 错题库：后端 CRUD 已有，前端仍需接真实接口。
-- 申论批改：前端骨架，后端待实现。
+- OCR 识题：前端配置与识别流程已通，后端已接入百度 OCR；PaddleOCR / VL 模型为预留能力。
+- 错题库：后端 CRUD 已有，前端仍需接真实接口（当前仍使用 mock 数据）。
+- 申论批改：后端已实现 PDF 上传、解析（LLM 边界识别 + 规则回退）、chunk/section、分类、组装、批改全流程；LLM 批改已接入真实 LLM，返回结构化分项评分；无 LLM 时回退启发式评分。
 - 番茄钟：可写入后端，并联动学习日志和每日任务。
 - 音乐播放器：服务器上传、歌单、播放。
 - 学习日志：番茄钟自动写入，支持基础统计。
 - 学习计划：新增、完成、删除。
 - 日历：聚合计划、番茄钟记录、错题复习。
-- 配置：LLM、Prompt、OCR 配置、PDF 能力预留、数据备份导出。
+- 配置：LLM、Prompt、OCR 配置、PDF 解析测试、数据备份导出。
 
 ## 4. 后端结构
 
@@ -74,7 +74,7 @@ backend/
 
 约定：
 
-- `models` 只放 GORM 数据模型。
+- `models` 只放 GORM 数据模型（含 `essay_sections`、`essay_section_relations` 等新 model）。
 - `services` 放业务逻辑和数据库查询。
 - `handlers` 只做参数解析、调用 service、返回响应。
 - `routes` 只注册路由，不写业务逻辑。
@@ -114,26 +114,33 @@ src/
 - `logs`
 - `plans`
 - `calendar`
-- `music`
+- `music`（含歌单管理、上传、播放、元数据、删除、排序）
+- `essay`（含 sections、chunks、分类、组装、LLM 批改）
+- `ocr`（百度 OCR 识别已接入，AI 修正接口为前端 mock）
+- `pdf`（PDF 解析测试）
 
 仍是 mock / 待实现：
 
-- `ocr`
-- `questions`
-- `essay`
-- `pdf`
+- `questions` 题库管理后端暂未作为重点
 - `theme` 目前使用 localStorage
+
+后端已实现、前端待完整接入：
+
+- `mistakes` 错题库（前端仍使用 mock 数据）
+- `ocr` 的 AI 修正接口（`POST /api/ocr/correct` 为前端 mock）
+- `prompts` 的测试接口（`POST /api/prompts/test` 为前端 mock）
 
 ## 7. 下一步建议
 
 优先级建议：
 
-1. 错题库前端接真实后端。
-2. OCR 后端基础：上传图片、任务表、PaddleOCR endpoint 调用。
-3. LLM 拉取模型列表：OpenAI-compatible `/models`。
-4. PDF 文本解析接口：先支持非扫描件。
-5. 音乐库补删除、排序、权限。
+1. **申论批改模块泛化重构**（题目—材料—参考答案关联、跨卷套合并、人工修正入口），完整方案见 [docs/ESSAY_MODULE_REDESIGN.md](ESSAY_MODULE_REDESIGN.md)。
+2. 错题库前端接真实后端（后端已完成，前端仍用 mock）。
+3. OCR AI 修正与 Prompt 测试接真实后端。
+4. 题库管理后端补全（如需要）。
+5. 学习计划 AI 生成接真实 LLM。
 6. 引入认证和 root/admin 权限模型。
+7. PDF 扫描件转图片 + OCR 流程。
 
 ## 8. 开发前检查
 

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"gkweb/backend/internal/models"
 	"gkweb/backend/internal/response"
@@ -24,7 +26,8 @@ type essayModelPayload struct {
 }
 
 type essayParsePayload struct {
-	RawText string `json:"raw_text"`
+	RawText         string `json:"raw_text"`
+	BoundaryModelID uint   `json:"boundary_model_id"`
 }
 
 type essayReviewPayload struct {
@@ -45,11 +48,29 @@ func (h *EssayHandler) ListDocuments(c *gin.Context) {
 	response.Success(c, documents)
 }
 
+func (h *EssayHandler) DeleteDocument(c *gin.Context) {
+	id, err := uintParam(c, "id")
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, 40072, "invalid document id")
+		return
+	}
+	if err := h.service.DeleteDocument(userIDFromRequest(c), id); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Error(c, http.StatusNotFound, 40076, "document not found")
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, 50076, "delete essay document failed")
+		return
+	}
+	response.Success(c, gin.H{"deleted": true})
+}
+
 func (h *EssayHandler) CreateDocument(c *gin.Context) {
 	title := strings.TrimSpace(c.PostForm("title"))
 	rawText := c.PostForm("raw_text")
 	documentRole := strings.TrimSpace(c.PostForm("document_role"))
 	sourceGroup := strings.TrimSpace(c.PostForm("source_group"))
+	boundaryModelID := uintFromString(c.PostForm("boundary_model_id"))
 
 	var originalName string
 	var relativePath string
@@ -96,13 +117,15 @@ func (h *EssayHandler) CreateDocument(c *gin.Context) {
 	}
 
 	if strings.TrimSpace(rawText) != "" || strings.TrimSpace(relativePath) != "" {
-		parsedDocument, chunks, err := h.service.ParseDocument(userIDFromRequest(c), document.ID, rawText)
+		parsedDocument, sections, err := h.service.ParseDocumentWithBoundaryModel(userIDFromRequest(c), document.ID, rawText, boundaryModelID)
 		if err != nil {
 			h.service.MarkDocumentFailed(userIDFromRequest(c), document.ID, err.Error())
 			response.Error(c, http.StatusBadRequest, 40075, err.Error())
 			return
 		}
-		response.Success(c, gin.H{"document": parsedDocument, "chunks": chunks})
+		chunks, _ := h.service.ListChunks(userIDFromRequest(c), document.ID)
+		questions, _ := h.service.ListQuestions(userIDFromRequest(c), document.ID)
+		response.Success(c, gin.H{"document": parsedDocument, "sections": sections, "chunks": chunks, "questions": questions})
 		return
 	}
 
@@ -119,13 +142,47 @@ func (h *EssayHandler) ParseDocument(c *gin.Context) {
 	var payload essayParsePayload
 	_ = c.ShouldBindJSON(&payload)
 
-	document, chunks, err := h.service.ParseDocument(userIDFromRequest(c), id, payload.RawText)
+	document, sections, err := h.service.ParseDocumentWithBoundaryModel(userIDFromRequest(c), id, payload.RawText, payload.BoundaryModelID)
 	if err != nil {
 		h.service.MarkDocumentFailed(userIDFromRequest(c), id, err.Error())
 		response.Error(c, http.StatusBadRequest, 40075, err.Error())
 		return
 	}
-	response.Success(c, gin.H{"document": document, "chunks": chunks})
+	chunks, _ := h.service.ListChunks(userIDFromRequest(c), id)
+	questions, _ := h.service.ListQuestions(userIDFromRequest(c), id)
+	response.Success(c, gin.H{"document": document, "sections": sections, "chunks": chunks, "questions": questions})
+}
+
+func (h *EssayHandler) DebugBoundary(c *gin.Context) {
+	id, err := uintParam(c, "id")
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, 40072, "invalid document id")
+		return
+	}
+
+	var payload essayParsePayload
+	_ = c.ShouldBindJSON(&payload)
+
+	result, err := h.service.DebugBoundarySplit(userIDFromRequest(c), id, payload.RawText, payload.BoundaryModelID)
+	if err != nil {
+		writeServiceError(c, err, "debug essay boundary failed")
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *EssayHandler) ListSections(c *gin.Context) {
+	id, err := uintParam(c, "id")
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, 40072, "invalid document id")
+		return
+	}
+	sections, err := h.service.ListSections(userIDFromRequest(c), id)
+	if err != nil {
+		writeServiceError(c, err, "list essay sections failed")
+		return
+	}
+	response.Success(c, sections)
 }
 
 func (h *EssayHandler) ListChunks(c *gin.Context) {

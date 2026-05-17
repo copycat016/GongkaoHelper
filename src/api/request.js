@@ -15,7 +15,7 @@ function buildUrl(path, params) {
 }
 
 export async function request(path, options = {}) {
-  const { method = "GET", data, params, headers, mock } = options;
+  const { method = "GET", data, params, headers, mock, signal } = options;
 
   if (mock) {
     return Promise.resolve(typeof mock === "function" ? mock() : mock);
@@ -24,6 +24,7 @@ export async function request(path, options = {}) {
   try {
     const response = await fetch(buildUrl(path, params), {
       method,
+      signal,
       headers: {
         "Content-Type": "application/json",
         ...headers,
@@ -43,6 +44,9 @@ export async function request(path, options = {}) {
 
     return result;
   } catch (error) {
+    if (error?.name === "AbortError") {
+      throw error;
+    }
     message.error(error.message || "网络请求异常");
     throw error;
   }

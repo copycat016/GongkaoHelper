@@ -31,6 +31,7 @@ type EssayQuestion struct {
 	BaseModel
 	DocumentID   uint   `json:"document_id" gorm:"not null;index"`
 	Title        string `json:"title" gorm:"size:240;not null"`
+	QuestionNo   string `json:"question_no" gorm:"size:10"`              // 题号，如 "1","2"
 	QuestionType string `json:"question_type" gorm:"size:80"`
 	QuestionText string `json:"question_text" gorm:"type:text;not null"`
 	MaxScore     int    `json:"max_score" gorm:"not null;default:100"`
@@ -44,6 +45,33 @@ type EssayQuestionChunk struct {
 	QuestionID   uint   `json:"question_id" gorm:"not null;index"`
 	ChunkID      uint   `json:"chunk_id" gorm:"not null;index"`
 	RelationType string `json:"relation_type" gorm:"size:40;not null;index"`
+}
+
+// EssaySection 是按语义区域（material/question/answer/analysis）存储的结构化结果。
+// 替代原有的固定长度 EssayChunk，保留原始 block 结构和位置信息。
+type EssaySection struct {
+	BaseModel
+	DocumentID         uint    `json:"document_id" gorm:"not null;index"`
+	PageStart          int     `json:"page_start" gorm:"not null;default:1"`
+	PageEnd            int     `json:"page_end" gorm:"not null;default:1"`
+	SectionType        string  `json:"section_type" gorm:"size:40;not null;default:unknown;index"`
+	Title              string  `json:"title" gorm:"size:240"`
+	Content            string  `json:"content" gorm:"type:text;not null"`
+	BlockIDs           string  `json:"block_ids" gorm:"size:500"`  // 逗号分隔的 block id 列表，用于追溯
+	QuestionNo         string  `json:"question_no" gorm:"size:10"` // 题号（question 区域使用）
+	RelatedQuestionNos string  `json:"related_question_nos" gorm:"size:100"` // 关联题号（逗号分隔，answer/material 使用）
+	Confidence         float64 `json:"confidence" gorm:"not null;default:0"`
+	Reason             string  `json:"reason" gorm:"size:500"`
+	ParsedByLLM        bool    `json:"parsed_by_llm" gorm:"not null;default:false"`
+}
+
+// EssaySectionRelation 保存 question-material-answer 之间的关联。
+type EssaySectionRelation struct {
+	BaseModel
+	DocumentID   uint   `json:"document_id" gorm:"not null;index"`
+	QuestionID   uint   `json:"question_id" gorm:"not null;index"`
+	SectionID    uint   `json:"section_id" gorm:"not null;index"` // 关联的 material/answer section
+	RelationType string `json:"relation_type" gorm:"size:40;not null;index"` // question_material / question_answer
 }
 
 type EssayReview struct {

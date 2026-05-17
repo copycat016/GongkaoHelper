@@ -43,6 +43,9 @@ function AppLayout() {
     if (["/logs", "/plans", "/calendar"].includes(location.pathname)) {
       return "/study";
     }
+    if (location.pathname.startsWith("/questions/")) {
+      return "/questions";
+    }
     const exact = menuItems.find((item) => item.key === location.pathname);
     return exact ? exact.key : "/";
   }, [location.pathname]);
@@ -124,7 +127,7 @@ function AppLayout() {
             <Outlet />
           </div>
         </Content>
-        <GlobalMusicBar />
+        <GlobalMusicBar collapsed={collapsed} isMobile={isMobile} />
       </Layout>
     </Layout>
   );

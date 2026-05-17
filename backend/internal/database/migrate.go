@@ -21,8 +21,10 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.OCRTask{},
 		&models.EssayDocument{},
 		&models.EssayChunk{},
+		&models.EssaySection{},
 		&models.EssayQuestion{},
 		&models.EssayQuestionChunk{},
+		&models.EssaySectionRelation{},
 		&models.EssayReview{},
 	)
 }

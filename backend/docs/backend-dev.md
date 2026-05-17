@@ -1,7 +1,7 @@
 # Backend Development
 
 当前已实现后端基础骨架，以及 LLM Provider / Model、Prompt 模板的配置类接口。
-已实现错题库、番茄钟记录、学习日志、学习计划和日历聚合接口。尚未实现 OCR、题库、PDF、申论批改等业务接口。
+已实现错题库、番茄钟记录、学习日志、学习计划、日历聚合、音乐歌单与上传、OCR（百度 OCR）、PDF 文本解析测试、申论 PDF 结构化与批改等业务接口。
 
 ## 目录结构
 
@@ -75,6 +75,13 @@ http://localhost:21073/
 
 - LLM 配置
 - Prompt 配置
+- 错题库（后端接口已完成，前端仍使用 mock 数据展示）
+- 番茄钟
+- 学习日志 / 学习计划 / 日历
+- 音乐播放器（歌单、上传、播放）
+- OCR 配置与识别（百度 OCR）
+- PDF 解析测试
+- 申论 PDF 上传、解析、chunk/section 分类、题目组装与批改（LLM 批改已接入真实模型，无 LLM 时回退启发式评分）
 
 ## 3. 测试接口
 
@@ -214,6 +221,60 @@ curl -X POST http://localhost:21080/api/plans \
 curl http://localhost:21080/api/calendar/events?month=2026-05
 ```
 
+OCR 识别：
+
+```bash
+curl -X POST http://localhost:21080/api/ocr/recognize \
+  -F "file=@/path/to/image.png" \
+  -F "scene=printed" \
+  -F "engine=general_basic"
+```
+
+PDF 解析测试：
+
+```bash
+curl -X POST http://localhost:21080/api/pdf/parse-test \
+  -F "file=@/path/to/test.pdf"
+```
+
+申论文档：
+
+```bash
+curl http://localhost:21080/api/essay/documents
+
+curl -X POST http://localhost:21080/api/essay/documents \
+  -F "file=@/path/to/essay.pdf" \
+  -F "title=2026年申论真题" \
+  -F "document_role=combined"
+
+# 解析（可通过 boundary_model_id 指定 LLM 边界识别模型）
+curl -X POST http://localhost:21080/api/essay/documents/1/parse
+
+# 调试边界识别
+curl -X POST http://localhost:21080/api/essay/documents/1/debug-boundary \
+  -H "Content-Type: application/json" \
+  -d '{"model_id": 1}'
+
+# 查看 sections（语义区域，主流程使用）
+curl http://localhost:21080/api/essay/documents/1/sections
+
+# 查看 chunks（固定长度片段，兼容旧流程）
+curl http://localhost:21080/api/essay/documents/1/chunks
+
+curl -X POST http://localhost:21080/api/essay/documents/1/classify \
+  -H "Content-Type: application/json" \
+  -d '{"model_id": 1}'
+
+curl -X POST http://localhost:21080/api/essay/documents/1/assemble
+
+curl http://localhost:21080/api/essay/documents/1/questions
+
+# 批改（LLM 批改已接入，无 LLM 时回退启发式评分）
+curl -X POST http://localhost:21080/api/essay/questions/1/review \
+  -H "Content-Type: application/json" \
+  -d '{"model_id": 1, "user_answer": "我的作答内容"}'
+```
+
 成功响应格式示例：
 
 ```json
@@ -241,11 +302,40 @@ curl http://localhost:21080/api/calendar/events?month=2026-05
 | `DB_SSLMODE` | SSL 模式 | `disable` |
 | `DB_TIMEZONE` | 数据库时区 | `Asia/Shanghai` |
 
-## 5. 下一阶段建议
+## 5. PDF 解析依赖说明
+
+申论和 PDF 测试功能依赖文本解析，当前策略如下：
+
+- 优先使用系统命令 `pdftotext`（来自 Poppler）。
+- 找不到时回退到 Go 库 `github.com/ledongthuc/pdf`。
+- 扫描件 PDF 文本层不可用，必须走 OCR 识别。
+
+建议安装 Poppler：
+
+```bash
+# Debian / Ubuntu
+sudo apt install poppler-utils
+
+# Fedora
+sudo dnf install poppler-utils
+
+# Arch
+sudo pacman -S poppler
+```
+
+验证：
+
+```bash
+pdftotext -v
+```
+
+## 6. 下一阶段建议
 
 下一阶段建议继续做细节完善：
 
-1. 把前端错题库页接到真实 `/api/mistakes`。
-2. 给学习计划增加编辑弹窗和阶段筛选。
+1. 把前端错题库页接到真实 `/api/mistakes`（后端已完成，前端仍用 mock）。
+2. 给学习计划增加编辑弹窗和阶段筛选、"AI 生成计划" 接真实 LLM。
 3. 给学习日志增加周/月统计。
-4. 开始接 OCR 识题流程。
+4. 实现 OCR AI 修正接口和 Prompt 测试接口。
+5. 引入用户认证和 root/admin 权限模型，替换当前 `X-User-ID` 临时方案。
+6. PDF 扫描件转图片 + OCR 流程。

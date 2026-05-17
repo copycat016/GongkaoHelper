@@ -16,3 +16,21 @@ export async function parsePdfTest(file) {
   }
   return Object.prototype.hasOwnProperty.call(result, "data") ? result.data : result;
 }
+
+export async function parseDocumentTool({ file, rawText, ocrJson, adapter } = {}) {
+  const formData = new FormData();
+  if (file) formData.append("file", file);
+  if (rawText) formData.append("raw_text", rawText);
+  if (ocrJson) formData.append("ocr_json", ocrJson);
+  if (adapter) formData.append("adapter", adapter);
+
+  const response = await fetch("/api/pdf/parse-tool", {
+    method: "POST",
+    body: formData,
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || result?.code > 0) {
+    throw new Error(result?.message || "文档解析失败");
+  }
+  return Object.prototype.hasOwnProperty.call(result, "data") ? result.data : result;
+}

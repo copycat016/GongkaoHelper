@@ -1,6 +1,8 @@
 package routes
 
 import (
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
@@ -16,6 +18,7 @@ func Register(router *gin.Engine, db *gorm.DB) {
 	llmHandler := handlers.NewLLMHandler(services.NewLLMService(db))
 	promptHandler := handlers.NewPromptHandler(services.NewPromptService(db))
 	mistakeHandler := handlers.NewMistakeHandler(services.NewMistakeService(db))
+	questionBankHandler := handlers.NewQuestionBankHandler(services.NewQuestionBankService(db))
 	pomodoroHandler := handlers.NewPomodoroHandler(services.NewPomodoroService(db))
 	studyHandler := handlers.NewStudyHandler(services.NewStudyService(db))
 	musicHandler := handlers.NewMusicHandler(services.NewMusicService(db))
@@ -24,6 +27,13 @@ func Register(router *gin.Engine, db *gorm.DB) {
 	essayHandler := handlers.NewEssayHandler(services.NewEssayService(db))
 	pdfHandler := handlers.NewPDFHandler()
 
+	// 音频文件不会被修改（文件名含时间戳），设置长缓存
+	router.Use(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/uploads/music/") {
+			c.Header("Cache-Control", "public, max-age=31536000, immutable")
+		}
+		c.Next()
+	})
 	router.Static("/uploads", "./uploads")
 
 	api := router.Group("/api")
@@ -63,6 +73,14 @@ func Register(router *gin.Engine, db *gorm.DB) {
 			mistakes.POST("/:id/review", mistakeHandler.Review)
 		}
 
+		questions := api.Group("/questions")
+		{
+			questions.GET("", questionBankHandler.List)
+			questions.GET("/:id", questionBankHandler.Get)
+			questions.PUT("/:id", questionBankHandler.Update)
+			questions.DELETE("/:id", questionBankHandler.Delete)
+		}
+
 		pomodoro := api.Group("/pomodoro")
 		{
 			pomodoro.POST("/sessions", pomodoroHandler.CreateSession)
@@ -94,10 +112,19 @@ func Register(router *gin.Engine, db *gorm.DB) {
 		{
 			music.GET("/playlists", musicHandler.ListPlaylists)
 			music.POST("/playlists", musicHandler.CreatePlaylist)
+			music.PUT("/playlists/:playlist_id", musicHandler.UpdatePlaylist)
+			music.DELETE("/playlists/:playlist_id", musicHandler.DeletePlaylist)
 			music.GET("/tracks", musicHandler.ListTracks)
 			music.POST("/tracks", musicHandler.UploadTrack)
+			music.DELETE("/tracks/:track_id", musicHandler.DeleteTrack)
+			music.GET("/tracks/:track_id/playlists", musicHandler.TrackPlaylists)
+			music.POST("/tracks/:track_id/metadata/lookup", musicHandler.LookupTrackMetadata)
+			music.PUT("/tracks/:track_id/metadata", musicHandler.ApplyTrackMetadata)
+			music.POST("/tracks/:track_id/lyrics/fetch", musicHandler.FetchTrackLyrics)
 			music.GET("/playlists/:playlist_id/tracks", musicHandler.PlaylistTracks)
 			music.POST("/playlists/:playlist_id/tracks/:track_id", musicHandler.AddTrackToPlaylist)
+			music.DELETE("/playlists/:playlist_id/tracks/:track_id", musicHandler.RemoveTrackFromPlaylist)
+			music.PUT("/playlists/:playlist_id/sort", musicHandler.UpdatePlaylistSort)
 		}
 
 		ocr := api.Group("/ocr")
@@ -119,7 +146,10 @@ func Register(router *gin.Engine, db *gorm.DB) {
 		{
 			essay.GET("/documents", essayHandler.ListDocuments)
 			essay.POST("/documents", essayHandler.CreateDocument)
+			essay.DELETE("/documents/:id", essayHandler.DeleteDocument)
 			essay.POST("/documents/:id/parse", essayHandler.ParseDocument)
+			essay.POST("/documents/:id/debug-boundary", essayHandler.DebugBoundary)
+			essay.GET("/documents/:id/sections", essayHandler.ListSections)
 			essay.GET("/documents/:id/chunks", essayHandler.ListChunks)
 			essay.POST("/documents/:id/classify", essayHandler.ClassifyChunks)
 			essay.POST("/documents/:id/assemble", essayHandler.AssembleQuestions)
@@ -129,6 +159,7 @@ func Register(router *gin.Engine, db *gorm.DB) {
 
 		pdf := api.Group("/pdf")
 		{
+			pdf.POST("/parse-tool", pdfHandler.ParseTool)
 			pdf.POST("/parse-test", pdfHandler.ParseTest)
 		}
 	}

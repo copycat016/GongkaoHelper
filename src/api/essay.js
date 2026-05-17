@@ -12,13 +12,14 @@ async function unwrapResponse(response) {
   return Object.prototype.hasOwnProperty.call(result, "data") ? result.data : result;
 }
 
-export async function createEssayDocument({ file, title, rawText, documentRole, sourceGroup }) {
+export async function createEssayDocument({ file, title, rawText, documentRole, sourceGroup, boundaryModelId }) {
   const formData = new FormData();
   if (file) formData.append("file", file);
   if (title) formData.append("title", title);
   if (rawText) formData.append("raw_text", rawText);
   if (documentRole) formData.append("document_role", documentRole);
   if (sourceGroup) formData.append("source_group", sourceGroup);
+  if (boundaryModelId) formData.append("boundary_model_id", String(boundaryModelId));
 
   const response = await fetch(apiUrl("/essay/documents"), {
     method: "POST",
@@ -28,7 +29,10 @@ export async function createEssayDocument({ file, title, rawText, documentRole, 
 }
 
 export const getEssayDocuments = () => api.get("/essay/documents");
+export const deleteEssayDocument = (id) => api.delete(`/essay/documents/${id}`);
 export const parseEssayDocument = (id, data = {}) => api.post(`/essay/documents/${id}/parse`, data);
+export const debugEssayBoundary = (id, data = {}) => api.post(`/essay/documents/${id}/debug-boundary`, data);
+export const getEssaySections = (id) => api.get(`/essay/documents/${id}/sections`);
 export const getEssayChunks = (id) => api.get(`/essay/documents/${id}/chunks`);
 export const classifyEssayChunks = (id, data = {}) => api.post(`/essay/documents/${id}/classify`, data);
 export const assembleEssayQuestions = (id) => api.post(`/essay/documents/${id}/assemble`, {});

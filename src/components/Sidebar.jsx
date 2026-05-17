@@ -1,4 +1,3 @@
-import { Menu } from "antd";
 import {
   BookOutlined,
   ClockCircleOutlined,
@@ -27,15 +26,38 @@ function Sidebar({ collapsed, selectedKey, onSelect }) {
   return (
     <>
       <div className="brand-box">
-        <div className="brand-mark">{collapsed ? "A" : "Aozora"}</div>
+        <div className={collapsed ? "brand-mark collapsed" : "brand-mark"}>
+          <img src="/app-icon.png" alt="" className="brand-icon" />
+          {!collapsed && <span className="brand-name">Masiro</span>}
+        </div>
       </div>
-      <Menu
-        className="app-menu"
-        mode="inline"
-        selectedKeys={[selectedKey]}
-        items={menuItems}
-        onClick={({ key }) => onSelect(key)}
-      />
+      <nav className="app-menu" aria-label="主导航">
+        {menuItems.map((item) => {
+          const selected = item.key === selectedKey;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              className={`app-menu-item${selected ? " selected" : ""}`}
+              aria-current={selected ? "page" : undefined}
+              title={collapsed ? item.label : undefined}
+              onPointerUp={(event) => {
+                if (event.pointerType === "mouse" && event.button !== 0) return;
+                onSelect(item.key);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelect(item.key);
+                }
+              }}
+            >
+              <span className="app-menu-icon">{item.icon}</span>
+              {!collapsed && <span className="app-menu-label">{item.label}</span>}
+            </button>
+          );
+        })}
+      </nav>
     </>
   );
 }

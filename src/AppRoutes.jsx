@@ -11,6 +11,7 @@ import OCRQuestion from "./pages/OCRQuestion";
 import PomodoroPage from "./pages/PomodoroPage";
 import PromptSettings from "./pages/PromptSettings";
 import QuestionBank from "./pages/QuestionBank";
+import QuestionDetail from "./pages/QuestionDetail";
 import StudyCenter from "./pages/StudyCenter";
 
 function AppRoutes() {
@@ -22,6 +23,7 @@ function AppRoutes() {
             <Route index element={<Dashboard />} />
             <Route path="ocr" element={<OCRQuestion />} />
             <Route path="questions" element={<QuestionBank />} />
+            <Route path="questions/:id" element={<QuestionDetail />} />
             <Route path="mistakes" element={<MistakeBook />} />
             <Route path="essay" element={<EssayReview />} />
             <Route path="pdf" element={<Navigate to="/ai?tab=pdf" replace />} />

@@ -2,7 +2,7 @@ import Pomodoro from "../components/Pomodoro";
 
 function PomodoroPage() {
   return (
-    <div className="page-grid">
+    <div className="pomodoro-page">
       <Pomodoro />
     </div>
   );

@@ -1,16 +1,21 @@
 package services
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 
 	"gkweb/backend/internal/models"
+	"gkweb/backend/internal/parser"
 )
 
 const (
@@ -32,6 +37,27 @@ type EssayReviewResult struct {
 	MaxScore    int                `json:"max_score"`
 	Summary     string             `json:"summary"`
 	Suggestions []string           `json:"suggestions"`
+	Context     ReviewContext      `json:"context"`
+}
+
+type BoundaryDebugResult struct {
+	DocumentID    uint                 `json:"document_id"`
+	ModelID       uint                 `json:"model_id"`
+	BlockCount    int                  `json:"block_count"`         // 新流程中表示行数
+	Prompt        string               `json:"prompt"`
+	RawResponse   string               `json:"raw_response"`
+	ExtractedJSON string               `json:"extracted_json"`
+	Plan          *parser.BoundaryPlan `json:"plan,omitempty"`
+	ParseError    string               `json:"parse_error,omitempty"`
+	ApplyError    string               `json:"apply_error,omitempty"`
+	Sections      []parser.Section     `json:"sections,omitempty"`
+}
+
+// ReviewContext 展示题目批改时实际使用的上下文（非整篇 PDF）。
+type ReviewContext struct {
+	QuestionText string   `json:"question_text"`
+	Materials    []string `json:"materials"`
+	Answers      []string `json:"answers"`
 }
 
 func NewEssayService(db *gorm.DB) *EssayService {
@@ -61,7 +87,21 @@ func (s *EssayService) MarkDocumentFailed(userID uint, documentID uint, message 
 	_ = s.db.Save(&document).Error
 }
 
-func (s *EssayService) ParseDocument(userID uint, documentID uint, rawText string) (*models.EssayDocument, []models.EssayChunk, error) {
+// ParseDocument 使用新的 parser 模块解析文档，按语义区域（section）存储。
+func (s *EssayService) ParseDocument(userID uint, documentID uint, rawText string) (*models.EssayDocument, []models.EssaySection, error) {
+	return s.ParseDocumentWithBoundaryModel(userID, documentID, rawText, 0)
+}
+
+// ParseDocumentWithBoundaryModel 是核心解析流程。
+//
+// 新流程（boundaryModelID > 0）：
+//
+//	PDF文本 → 基础清洗(去空行/页码) → 编行号 → 整份文本交给 LLM 按行号切分 → 存 sections → 自动组装 questions
+//
+// 旧流程兜底（boundaryModelID == 0）：
+//
+//	PDF文本 → adapter → blocks → cleaner → 锚点+状态机切分 → 存 sections
+func (s *EssayService) ParseDocumentWithBoundaryModel(userID uint, documentID uint, rawText string, boundaryModelID uint) (*models.EssayDocument, []models.EssaySection, error) {
 	document, err := s.getDocument(userID, documentID)
 	if err != nil {
 		return nil, nil, err
@@ -70,39 +110,69 @@ func (s *EssayService) ParseDocument(userID uint, documentID uint, rawText strin
 	document.Note = ""
 	_ = s.db.Save(document).Error
 
-	if strings.TrimSpace(rawText) == "" {
-		if strings.TrimSpace(document.FilePath) != "" {
-			pages, err := ExtractPDFTextPages(document.FilePath)
-			if err != nil {
-				return nil, nil, err
-			}
-			rawText = pagesToEssayText(pages)
-		} else {
-			rawText = sampleEssayPDFText(document.Title)
+	parseSource, err := s.documentParseSource(document, rawText)
+	if err != nil {
+		return nil, nil, err
+	}
+	rawText = parseSource.Text
+
+	var sections []models.EssaySection
+
+	if boundaryModelID > 0 {
+		// ── 新流程：LLM 直接按行号切分 ──
+		// 1. 基础清洗 + 编行号
+		lines := parser.PrepareNumberedLines(rawText)
+		if len(lines) == 0 {
+			return nil, nil, errors.New("文档清洗后没有有效文本行")
 		}
+
+		// 2. LLM 切分
+		plan, err := s.suggestBoundaryPlanFromLines(userID, boundaryModelID, lines)
+		if err != nil {
+			return nil, nil, fmt.Errorf("LLM 切分失败: %w", err)
+		}
+
+		// 3. 按行号范围提取 section
+		parsedSections, err := parser.ApplyBoundaryPlanToLines(lines, plan)
+		if err != nil {
+			return nil, nil, fmt.Errorf("应用切分结果失败: %w", err)
+		}
+
+		sections = s.sectionsFromParsedSections(userID, documentID, parsedSections)
+		document.ClassModelID = boundaryModelID
+	} else {
+		// ── 旧流程兜底：规则引擎 ──
+		p := parser.NewDefault()
+		cleaned, err := p.PrepareString(fmt.Sprintf("doc_%d", documentID), rawText)
+		if err != nil {
+			return nil, nil, fmt.Errorf("prepare document failed: %w", err)
+		}
+		result, err := p.ParsePrepared(cleaned)
+		if err != nil {
+			return nil, nil, fmt.Errorf("parser failed: %w", err)
+		}
+		sections = s.sectionsFromResult(userID, documentID, result)
 	}
 
-	chunks := splitEssayText(userID, document.ID, rawText)
-	if len(chunks) == 0 {
-		return nil, nil, errors.New("no chunks parsed from document")
+	sections = normalizeEssayQuestionSections(sections)
+	if len(sections) == 0 {
+		return nil, nil, errors.New("no sections parsed from document")
 	}
 
+	// 4. 保存 sections 并自动组装 questions
 	err = s.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("user_id = ? AND document_id = ?", userID, document.ID).Delete(&models.EssayQuestionChunk{}).Error; err != nil {
-			return err
+		// 清理旧数据
+		for _, table := range []any{&models.EssaySectionRelation{}, &models.EssayQuestionChunk{}, &models.EssayQuestion{}, &models.EssaySection{}, &models.EssayChunk{}} {
+			if err := tx.Where("user_id = ? AND document_id = ?", userID, document.ID).Delete(table).Error; err != nil {
+				return err
+			}
 		}
-		if err := tx.Where("user_id = ? AND document_id = ?", userID, document.ID).Delete(&models.EssayQuestion{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("user_id = ? AND document_id = ?", userID, document.ID).Delete(&models.EssayChunk{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Create(&chunks).Error; err != nil {
+		if err := tx.Create(&sections).Error; err != nil {
 			return err
 		}
 		document.Status = "parsed"
-		document.ChunkCount = len(chunks)
-		document.PageCount = maxPageNo(chunks)
+		document.ChunkCount = len(sections)
+		document.PageCount = maxSectionPageEnd(sections)
 		document.Note = ""
 		return tx.Save(document).Error
 	})
@@ -110,118 +180,487 @@ func (s *EssayService) ParseDocument(userID uint, documentID uint, rawText strin
 		return nil, nil, err
 	}
 
-	return document, chunks, nil
+	// 5. 自动组装 questions（解析成功后直接进入申论题库）
+	if _, assembleErr := s.AssembleQuestions(userID, documentID); assembleErr != nil {
+		// 组装失败不影响解析结果，只记录到 note
+		document.Note = "自动组装题目失败: " + assembleErr.Error()
+		_ = s.db.Save(document).Error
+	}
+
+	return document, sections, nil
 }
 
+// suggestBoundaryPlanFromLines 用新流程调用 LLM：整份文本 + 行号 → JSON 边界。
+func (s *EssayService) suggestBoundaryPlanFromLines(userID uint, modelID uint, lines []parser.NumberedLine) (parser.BoundaryPlan, error) {
+	model, provider, err := s.getModelProvider(userID, modelID)
+	if err != nil {
+		return parser.BoundaryPlan{}, err
+	}
+	if !model.Enabled || !provider.Enabled {
+		return parser.BoundaryPlan{}, errors.New("boundary model or provider is disabled")
+	}
+
+	prompt := parser.BuildBoundaryPromptFromLines(lines)
+	systemPrompt := parser.BuildBoundarySystemPrompt()
+	content, err := callOpenAICompatibleChat(provider.BaseURL, provider.APIKey, model.Name, systemPrompt, prompt)
+	if err != nil {
+		return parser.BoundaryPlan{}, err
+	}
+	content = extractJSONContent(content)
+
+	var plan parser.BoundaryPlan
+	if err := json.Unmarshal([]byte(content), &plan); err != nil {
+		return parser.BoundaryPlan{}, fmt.Errorf("decode boundary json failed: %w\nraw: %s", err, truncateForError(content, 500))
+	}
+	if len(plan.Sections) == 0 {
+		return parser.BoundaryPlan{}, errors.New("boundary json has no sections")
+	}
+	return plan, nil
+}
+
+// sectionsFromParsedSections 将 parser.Section 转为 models.EssaySection。
+func (s *EssayService) sectionsFromParsedSections(userID uint, documentID uint, parsedSections []parser.Section) []models.EssaySection {
+	sections := make([]models.EssaySection, 0, len(parsedSections))
+	for _, sec := range parsedSections {
+		relatedQNos := ""
+		if len(sec.RelatedQuestionNos) > 0 {
+			relatedQNos = strings.Join(sec.RelatedQuestionNos, ",")
+		}
+		sections = append(sections, models.EssaySection{
+			BaseModel:          models.BaseModel{UserID: userID},
+			DocumentID:         documentID,
+			PageStart:          sec.PageStart,
+			PageEnd:            sec.PageEnd,
+			SectionType:        string(sec.Type),
+			Title:              sec.Title,
+			Content:            sec.Text,
+			QuestionNo:         sec.QuestionNo,
+			RelatedQuestionNos: relatedQNos,
+			Confidence:         sec.Confidence,
+			Reason:             sec.Reason,
+			ParsedByLLM:        true,
+		})
+	}
+	return sections
+}
+
+func (s *EssayService) DebugBoundarySplit(userID uint, documentID uint, rawText string, modelID uint) (*BoundaryDebugResult, error) {
+	document, err := s.getDocument(userID, documentID)
+	if err != nil {
+		return nil, err
+	}
+	parseSource, err := s.documentParseSource(document, rawText)
+	if err != nil {
+		return nil, err
+	}
+	rawText = parseSource.Text
+
+	// 新流程：按行号切分
+	lines := parser.PrepareNumberedLines(rawText)
+	prompt := parser.BuildBoundaryPromptFromLines(lines)
+
+	result := &BoundaryDebugResult{
+		DocumentID: documentID,
+		ModelID:    modelID,
+		BlockCount: len(lines), // 复用字段，表示行数
+		Prompt:     prompt,
+	}
+	if modelID == 0 {
+		result.ParseError = "boundary_model_id is required for LLM debug"
+		return result, nil
+	}
+
+	model, provider, err := s.getModelProvider(userID, modelID)
+	if err != nil {
+		return nil, err
+	}
+	systemPrompt := parser.BuildBoundarySystemPrompt()
+	rawResponse, content, err := callOpenAICompatibleChatDebug(provider.BaseURL, provider.APIKey, model.Name, systemPrompt, prompt)
+	if err != nil {
+		result.ParseError = err.Error()
+		return result, nil
+	}
+	result.RawResponse = rawResponse
+	result.ExtractedJSON = extractJSONContent(content)
+
+	var plan parser.BoundaryPlan
+	if err := json.Unmarshal([]byte(result.ExtractedJSON), &plan); err != nil {
+		result.ParseError = err.Error()
+		return result, nil
+	}
+	result.Plan = &plan
+
+	sections, err := parser.ApplyBoundaryPlanToLines(lines, plan)
+	if err != nil {
+		result.ApplyError = err.Error()
+		return result, nil
+	}
+	result.Sections = sections
+	return result, nil
+}
+
+func (s *EssayService) documentParseSource(document *models.EssayDocument, rawText string) (*DocumentParseResult, error) {
+	if strings.TrimSpace(rawText) != "" || strings.TrimSpace(document.FilePath) != "" {
+		return ParseDocumentSource(DocumentParseInput{
+			RawText: rawText,
+			PDFPath: document.FilePath,
+		})
+	}
+	return parseRawTextDocument(sampleEssayPDFText(document.Title)), nil
+}
+
+func (s *EssayService) getModelProvider(userID uint, modelID uint) (models.LLMModel, models.LLMProvider, error) {
+	var model models.LLMModel
+	if err := s.db.Where("user_id = ? AND id = ?", userID, modelID).First(&model).Error; err != nil {
+		return models.LLMModel{}, models.LLMProvider{}, err
+	}
+	var provider models.LLMProvider
+	if err := s.db.Where("user_id = ? AND id = ?", userID, model.ProviderID).First(&provider).Error; err != nil {
+		return models.LLMModel{}, models.LLMProvider{}, err
+	}
+	return model, provider, nil
+}
+
+func callOpenAICompatibleChat(baseURL string, apiKey string, model string, systemPrompt string, userPrompt string) (string, error) {
+	_, content, err := callOpenAICompatibleChatDebug(baseURL, apiKey, model, systemPrompt, userPrompt)
+	return content, err
+}
+
+func callOpenAICompatibleChatDebug(baseURL string, apiKey string, model string, systemPrompt string, userPrompt string) (string, string, error) {
+	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if base == "" {
+		return "", "", errors.New("llm base_url is required")
+	}
+	if !strings.HasSuffix(base, "/chat/completions") {
+		base += "/chat/completions"
+	}
+
+	payload := map[string]any{
+		"model": model,
+		"messages": []map[string]string{
+			{"role": "system", "content": systemPrompt},
+			{"role": "user", "content": userPrompt},
+		},
+		"temperature": 0.1,
+		"max_tokens":  4096,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return "", "", err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, base, bytes.NewReader(body))
+	if err != nil {
+		return "", "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	if strings.TrimSpace(apiKey) != "" {
+		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(apiKey))
+	}
+
+	client := &http.Client{Timeout: 90 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", "", err
+	}
+	defer resp.Body.Close()
+	rawBody, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return "", "", readErr
+	}
+	rawResponse := string(rawBody)
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return rawResponse, "", fmt.Errorf("llm api returned %d: %s", resp.StatusCode, truncateForError(rawResponse, 1024))
+	}
+
+	var result struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(rawBody, &result); err != nil {
+		return rawResponse, "", err
+	}
+	if len(result.Choices) == 0 {
+		return rawResponse, "", errors.New("llm returned no choices")
+	}
+	return rawResponse, result.Choices[0].Message.Content, nil
+}
+
+func extractJSONContent(content string) string {
+	content = strings.TrimSpace(content)
+	if strings.HasPrefix(content, "```") {
+		lines := strings.Split(content, "\n")
+		var kept []string
+		for _, line := range lines {
+			if strings.HasPrefix(strings.TrimSpace(line), "```") {
+				continue
+			}
+			kept = append(kept, line)
+		}
+		return strings.TrimSpace(strings.Join(kept, "\n"))
+	}
+	start := strings.Index(content, "{")
+	end := strings.LastIndex(content, "}")
+	if start >= 0 && end >= start {
+		return strings.TrimSpace(content[start : end+1])
+	}
+	return content
+}
+
+func truncateForError(value string, limit int) string {
+	value = strings.TrimSpace(value)
+	if len([]rune(value)) <= limit {
+		return value
+	}
+	runes := []rune(value)
+	return string(runes[:limit])
+}
+
+func (s *EssayService) sectionsFromResult(userID uint, documentID uint, result parser.StructuredResult) []models.EssaySection {
+	sections := make([]models.EssaySection, 0, len(result.Sections))
+	for _, sec := range result.Sections {
+		blockIDs := make([]string, len(sec.Blocks))
+		for i, b := range sec.Blocks {
+			blockIDs[i] = b.ID
+		}
+		relatedQNos := ""
+		if len(sec.RelatedQuestionNos) > 0 {
+			relatedQNos = strings.Join(sec.RelatedQuestionNos, ",")
+		}
+		sections = append(sections, models.EssaySection{
+			BaseModel:          models.BaseModel{UserID: userID},
+			DocumentID:         documentID,
+			PageStart:          sec.PageStart,
+			PageEnd:            sec.PageEnd,
+			SectionType:        string(sec.Type),
+			Title:              sec.Title,
+			Content:            sec.Text,
+			BlockIDs:           strings.Join(blockIDs, ","),
+			QuestionNo:         sec.QuestionNo,
+			RelatedQuestionNos: relatedQNos,
+			Confidence:         sec.Confidence,
+			Reason:             sec.Reason,
+		})
+	}
+	return sections
+}
+
+// ListSections 返回文档的语义区域（替代旧版 ListChunks）。
+func (s *EssayService) ListSections(userID uint, documentID uint) ([]models.EssaySection, error) {
+	var sections []models.EssaySection
+	err := s.db.Where("user_id = ? AND document_id = ?", userID, documentID).Order("id asc").Find(&sections).Error
+	return sections, err
+}
+
+// ListChunks 保留向后兼容：从 sections 转换输出（旧表不再写入）。
 func (s *EssayService) ListChunks(userID uint, documentID uint) ([]models.EssayChunk, error) {
-	var chunks []models.EssayChunk
-	err := s.db.Where("user_id = ? AND document_id = ?", userID, documentID).Order("chunk_index asc").Find(&chunks).Error
-	return chunks, err
+	sections, err := s.ListSections(userID, documentID)
+	if err != nil {
+		return nil, err
+	}
+	chunks := make([]models.EssayChunk, 0, len(sections))
+	for i, sec := range sections {
+		chunks = append(chunks, models.EssayChunk{
+			BaseModel:          models.BaseModel{UserID: sec.UserID},
+			DocumentID:         sec.DocumentID,
+			PageNo:             sec.PageStart,
+			ChunkIndex:         i + 1,
+			Content:            sec.Content,
+			ChunkType:          sec.SectionType,
+			Confidence:         sec.Confidence,
+			ClassificationNote: sec.Reason,
+		})
+	}
+	return chunks, nil
 }
 
+// ClassifyChunks 在新流程中已无需单独调用（parser 已在解析时完成分类），
+// 保留方法以兼容旧接口，直接返回当前 sections 的 chunk 视图。
 func (s *EssayService) ClassifyChunks(userID uint, documentID uint, modelID uint) ([]models.EssayChunk, error) {
 	document, err := s.getDocument(userID, documentID)
 	if err != nil {
 		return nil, err
 	}
-
 	chunks, err := s.ListChunks(userID, documentID)
 	if err != nil {
 		return nil, err
 	}
 	if len(chunks) == 0 {
-		return nil, errors.New("document has no chunks, parse it first")
+		return nil, errors.New("document has no sections, parse it first")
 	}
 
-	for index := range chunks {
-		chunkType, confidence, note := classifyEssayChunk(chunks[index].Content, document.DocumentRole)
-		chunks[index].ChunkType = chunkType
-		chunks[index].Confidence = confidence
-		chunks[index].ClassModelID = modelID
-		chunks[index].ClassificationNote = note
-	}
-
-	err = s.db.Transaction(func(tx *gorm.DB) error {
-		for index := range chunks {
-			if err := tx.Save(&chunks[index]).Error; err != nil {
-				return err
-			}
-		}
-		document.Status = "classified"
-		document.ClassModelID = modelID
-		return tx.Save(document).Error
-	})
-	return chunks, err
+	document.Status = "classified"
+	document.ClassModelID = modelID
+	_ = s.db.Save(document).Error
+	return chunks, nil
 }
 
+// AssembleQuestions 基于语义区域（section）组装题目和关联关系。
+// 关联策略：
+// 1. 优先使用 section 中的 question_no / related_question_nos 精确关联
+// 2. 答案数量与题目数量相同时按顺序一一对应
+// 3. 兜底：所有材料关联到所有题目
 func (s *EssayService) AssembleQuestions(userID uint, documentID uint) ([]models.EssayQuestion, error) {
 	document, err := s.getDocument(userID, documentID)
 	if err != nil {
 		return nil, err
 	}
 
-	chunks, err := s.ListChunks(userID, documentID)
+	sections, err := s.ListSections(userID, documentID)
 	if err != nil {
 		return nil, err
 	}
-	if len(chunks) == 0 {
-		return nil, errors.New("document has no chunks")
+	if len(sections) == 0 {
+		return nil, errors.New("document has no sections")
 	}
 
-	questions := make([]models.EssayQuestion, 0)
-	relations := make([]models.EssayQuestionChunk, 0)
-	materialChunkIDs := make([]uint, 0)
-	referenceChunkIDs := make([]uint, 0)
-	scoringChunkIDs := make([]uint, 0)
+	var questions []models.EssayQuestion
+	var relations []models.EssaySectionRelation
 
-	for _, chunk := range chunks {
-		switch chunk.ChunkType {
-		case EssayChunkMaterial:
-			materialChunkIDs = append(materialChunkIDs, chunk.ID)
-		case EssayChunkReferenceAnswer:
-			referenceChunkIDs = append(referenceChunkIDs, chunk.ID)
-		case EssayChunkScoringRule:
-			scoringChunkIDs = append(scoringChunkIDs, chunk.ID)
-		case EssayChunkQuestion:
-			question := models.EssayQuestion{
+	// 按类型分组
+	type sectionRef struct {
+		ID                 uint
+		QuestionNo         string
+		RelatedQuestionNos []string
+	}
+	var materialRefs []sectionRef
+	var answerRefs []sectionRef
+
+	for _, sec := range sections {
+		relQNos := parseCommaSeparated(sec.RelatedQuestionNos)
+		switch sec.SectionType {
+		case string(parser.SectionMaterial):
+			materialRefs = append(materialRefs, sectionRef{ID: sec.ID, RelatedQuestionNos: relQNos})
+		case string(parser.SectionAnswer):
+			answerRefs = append(answerRefs, sectionRef{ID: sec.ID, QuestionNo: sec.QuestionNo, RelatedQuestionNos: relQNos})
+		case string(parser.SectionQuestion):
+			qNo := sec.QuestionNo
+			if qNo == "" {
+				qNo = fmt.Sprintf("%d", len(questions)+1)
+			}
+			q := models.EssayQuestion{
 				BaseModel:    models.BaseModel{UserID: userID},
 				DocumentID:   documentID,
-				Title:        questionTitle(chunk.Content, len(questions)+1),
-				QuestionType: guessQuestionType(chunk.Content),
-				QuestionText: chunk.Content,
-				MaxScore:     guessMaxScore(chunk.Content),
-				WordLimit:    guessWordLimit(chunk.Content),
+				Title:        questionTitle(document.Title, sec.Content, qNo, len(questions)+1),
+				QuestionNo:   qNo,
+				QuestionType: guessQuestionType(sec.Content),
+				QuestionText: sec.Content,
+				MaxScore:     guessMaxScore(sec.Content),
+				WordLimit:    guessWordLimit(sec.Content),
 				Status:       "assembled",
 			}
-			questions = append(questions, question)
+			questions = append(questions, q)
 		}
 	}
 
 	if len(questions) == 0 {
-		return nil, errors.New("no question chunks found, classify document first")
+		return nil, errors.New("no question sections found, parse document first")
 	}
 
 	err = s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ? AND document_id = ?", userID, documentID).Delete(&models.EssaySectionRelation{}).Error; err != nil {
+			return err
+		}
 		if err := tx.Where("user_id = ? AND document_id = ?", userID, documentID).Delete(&models.EssayQuestionChunk{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Where("user_id = ? AND document_id = ?", userID, documentID).Delete(&models.EssayQuestion{}).Error; err != nil {
 			return err
 		}
+
+		// 先创建所有 question 以获得 ID
 		for index := range questions {
 			if err := tx.Create(&questions[index]).Error; err != nil {
 				return err
 			}
-			for _, chunkID := range materialChunkIDs {
-				relations = append(relations, relation(userID, documentID, questions[index].ID, chunkID, EssayChunkMaterial))
-			}
-			for _, chunkID := range referenceChunkIDs {
-				relations = append(relations, relation(userID, documentID, questions[index].ID, chunkID, EssayChunkReferenceAnswer))
-			}
-			for _, chunkID := range scoringChunkIDs {
-				relations = append(relations, relation(userID, documentID, questions[index].ID, chunkID, EssayChunkScoringRule))
+		}
+
+		// question_no -> question DB ID
+		qNoToID := make(map[string]uint)
+		for _, q := range questions {
+			qNoToID[q.QuestionNo] = q.ID
+		}
+
+		// ── 关联材料 ──
+		// 材料通常关联到所有题目（申论材料是共享的），除非 related_question_nos 明确指定
+		for _, mat := range materialRefs {
+			if len(mat.RelatedQuestionNos) > 0 {
+				// 精确关联
+				for _, qNo := range mat.RelatedQuestionNos {
+					if qID, ok := qNoToID[qNo]; ok {
+						relations = append(relations, models.EssaySectionRelation{
+							BaseModel: models.BaseModel{UserID: userID}, DocumentID: documentID,
+							QuestionID: qID, SectionID: mat.ID, RelationType: "question_material",
+						})
+					}
+				}
+			} else {
+				// 保守策略：关联到所有题目
+				for _, q := range questions {
+					relations = append(relations, models.EssaySectionRelation{
+						BaseModel: models.BaseModel{UserID: userID}, DocumentID: documentID,
+						QuestionID: q.ID, SectionID: mat.ID, RelationType: "question_material",
+					})
+				}
 			}
 		}
+
+		// ── 关联答案 ──
+		linkedAnswers := make(map[int]bool)
+		// 优先使用 related_question_nos 精确关联
+		for aIdx, ans := range answerRefs {
+			relNos := ans.RelatedQuestionNos
+			// 如果 RelatedQuestionNos 为空但 QuestionNo 不为空，也作为关联依据
+			if len(relNos) == 0 && ans.QuestionNo != "" {
+				relNos = []string{ans.QuestionNo}
+			}
+			if len(relNos) > 0 {
+				for _, qNo := range relNos {
+					if qID, ok := qNoToID[qNo]; ok {
+						relations = append(relations, models.EssaySectionRelation{
+							BaseModel: models.BaseModel{UserID: userID}, DocumentID: documentID,
+							QuestionID: qID, SectionID: ans.ID, RelationType: "question_answer",
+						})
+						linkedAnswers[aIdx] = true
+					}
+				}
+			}
+		}
+
+		// 未关联的答案按顺序对应或保守关联
+		var unlinked []int
+		for aIdx := range answerRefs {
+			if !linkedAnswers[aIdx] {
+				unlinked = append(unlinked, aIdx)
+			}
+		}
+		if len(unlinked) > 0 {
+			if len(unlinked) == len(questions) {
+				// 按顺序一一对应
+				for i, aIdx := range unlinked {
+					relations = append(relations, models.EssaySectionRelation{
+						BaseModel: models.BaseModel{UserID: userID}, DocumentID: documentID,
+						QuestionID: questions[i].ID, SectionID: answerRefs[aIdx].ID, RelationType: "question_answer",
+					})
+				}
+			} else {
+				// 兜底：关联到所有题目
+				for _, aIdx := range unlinked {
+					for _, q := range questions {
+						relations = append(relations, models.EssaySectionRelation{
+							BaseModel: models.BaseModel{UserID: userID}, DocumentID: documentID,
+							QuestionID: q.ID, SectionID: answerRefs[aIdx].ID, RelationType: "question_answer",
+						})
+					}
+				}
+			}
+		}
+
 		if len(relations) > 0 {
 			if err := tx.Create(&relations).Error; err != nil {
 				return err
@@ -237,12 +676,31 @@ func (s *EssayService) AssembleQuestions(userID uint, documentID uint) ([]models
 	return questions, nil
 }
 
+// parseCommaSeparated 将逗号分隔的字符串拆分为非空字符串切片。
+func parseCommaSeparated(s string) []string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	var result []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
 func (s *EssayService) ListQuestions(userID uint, documentID uint) ([]models.EssayQuestion, error) {
 	var questions []models.EssayQuestion
 	err := s.db.Where("user_id = ? AND document_id = ?", userID, documentID).Order("id asc").Find(&questions).Error
 	return questions, err
 }
 
+// ReviewAnswer 根据题号只取对应 question + related materials + answer 进行批改。
+// 如果 modelID > 0，调用 LLM 进行真实批改；否则使用简单启发式评分。
 func (s *EssayService) ReviewAnswer(userID uint, questionID uint, modelID uint, userAnswer string) (*EssayReviewResult, error) {
 	var question models.EssayQuestion
 	if err := s.db.Where("user_id = ? AND id = ?", userID, questionID).First(&question).Error; err != nil {
@@ -252,14 +710,67 @@ func (s *EssayService) ReviewAnswer(userID uint, questionID uint, modelID uint, 
 		return nil, errors.New("user_answer is required")
 	}
 
-	score := mockEssayScore(userAnswer, question.WordLimit)
-	resultPayload := map[string]any{
-		"summary": "当前为流程骨架批改结果：已按题目、材料、参考答案和评分规则的结构化关系预留高质量模型调用位置。",
-		"suggestions": []string{
-			"后续接入高质量模型后，将把关联材料 chunk、参考答案 chunk 和评分规则 chunk 一并传入。",
-			"建议先检查题目组装是否正确，再提交答案批改。",
-		},
+	// 获取关联的 sections（材料 + 答案）
+	var relations []models.EssaySectionRelation
+	if err := s.db.Where("user_id = ? AND question_id = ?", userID, questionID).Find(&relations).Error; err != nil {
+		return nil, err
 	}
+
+	var materialTexts []string
+	var answerTexts []string
+	for _, rel := range relations {
+		var sec models.EssaySection
+		if err := s.db.Where("user_id = ? AND id = ?", userID, rel.SectionID).First(&sec).Error; err != nil {
+			continue
+		}
+		if rel.RelationType == "question_material" {
+			materialTexts = append(materialTexts, sec.Content)
+		} else if rel.RelationType == "question_answer" {
+			answerTexts = append(answerTexts, sec.Content)
+		}
+	}
+
+	ctx := ReviewContext{
+		QuestionText: question.QuestionText,
+		Materials:    materialTexts,
+		Answers:      answerTexts,
+	}
+
+	var score float64
+	var resultPayload map[string]any
+
+	if modelID > 0 {
+		// ── 调用 LLM 真实批改 ──
+		llmResult, err := s.callLLMReview(userID, modelID, question, materialTexts, answerTexts, userAnswer)
+		if err != nil {
+			// LLM 调用失败时，降级为启发式评分并记录错误
+			score = mockEssayScore(userAnswer, question.WordLimit)
+			resultPayload = map[string]any{
+				"summary":     fmt.Sprintf("LLM 批改调用失败，已降级为启发式评分。错误: %s", err.Error()),
+				"suggestions": []string{"请检查 LLM 模型配置是否正确。"},
+				"llm_error":   err.Error(),
+			}
+		} else {
+			score = llmResult.Score
+			resultPayload = map[string]any{
+				"summary":        llmResult.Summary,
+				"suggestions":    llmResult.Suggestions,
+				"dimensions":     llmResult.Dimensions,
+				"scoring_detail": llmResult.ScoringDetail,
+				"highlights":     llmResult.Highlights,
+			}
+		}
+	} else {
+		// ── 无模型时使用启发式评分 ──
+		score = mockEssayScore(userAnswer, question.WordLimit)
+		resultPayload = map[string]any{
+			"summary": fmt.Sprintf("启发式评分（未选择批改模型）。已提取 %d 段相关材料、%d 段参考答案/评分标准。", len(materialTexts), len(answerTexts)),
+			"suggestions": []string{
+				"选择批改模型后可获得 LLM 分维度详细批改。",
+			},
+		}
+	}
+
 	resultBytes, _ := json.Marshal(resultPayload)
 
 	review := models.EssayReview{
@@ -275,13 +786,196 @@ func (s *EssayService) ReviewAnswer(userID uint, questionID uint, modelID uint, 
 		return nil, err
 	}
 
+	summary, _ := resultPayload["summary"].(string)
+	suggestions, _ := resultPayload["suggestions"].([]string)
+
 	return &EssayReviewResult{
 		Review:      review,
 		Score:       score,
 		MaxScore:    question.MaxScore,
-		Summary:     resultPayload["summary"].(string),
-		Suggestions: resultPayload["suggestions"].([]string),
+		Summary:     summary,
+		Suggestions: suggestions,
+		Context:     ctx,
 	}, nil
+}
+
+// LLMReviewResult 是 LLM 批改的结构化输出。
+type LLMReviewResult struct {
+	Score         float64              `json:"score"`
+	Summary       string               `json:"summary"`
+	Suggestions   []string             `json:"suggestions"`
+	Dimensions    []ReviewDimension    `json:"dimensions"`
+	ScoringDetail string               `json:"scoring_detail"`
+	Highlights    []ReviewHighlight    `json:"highlights"`
+}
+
+// ReviewDimension 是一个评分维度。
+type ReviewDimension struct {
+	Name     string  `json:"name"`      // 如 "内容要点", "逻辑结构", "语言表达"
+	Score    float64 `json:"score"`
+	MaxScore float64 `json:"max_score"`
+	Comment  string  `json:"comment"`
+}
+
+// ReviewHighlight 标注答案中的亮点或问题。
+type ReviewHighlight struct {
+	Type    string `json:"type"`    // "good" / "issue"
+	Text    string `json:"text"`    // 原文摘录
+	Comment string `json:"comment"` // 批注
+}
+
+// callLLMReview 构建批改 prompt 并调用 LLM。
+func (s *EssayService) callLLMReview(userID uint, modelID uint, question models.EssayQuestion, materialTexts []string, answerTexts []string, userAnswer string) (*LLMReviewResult, error) {
+	model, provider, err := s.getModelProvider(userID, modelID)
+	if err != nil {
+		return nil, fmt.Errorf("获取模型配置失败: %w", err)
+	}
+	if !model.Enabled || !provider.Enabled {
+		return nil, errors.New("批改模型或服务商已禁用")
+	}
+
+	systemPrompt := buildReviewSystemPrompt()
+	userPrompt := buildReviewUserPrompt(question, materialTexts, answerTexts, userAnswer)
+
+	content, err := callOpenAICompatibleChat(provider.BaseURL, provider.APIKey, model.Name, systemPrompt, userPrompt)
+	if err != nil {
+		return nil, fmt.Errorf("LLM 调用失败: %w", err)
+	}
+
+	content = extractJSONContent(content)
+	var result LLMReviewResult
+	if err := json.Unmarshal([]byte(content), &result); err != nil {
+		return nil, fmt.Errorf("解析 LLM 批改结果失败: %w\nraw: %s", err, truncateForError(content, 500))
+	}
+
+	// 校验分数范围
+	if result.Score < 0 {
+		result.Score = 0
+	}
+	if result.Score > float64(question.MaxScore) {
+		result.Score = float64(question.MaxScore)
+	}
+
+	return &result, nil
+}
+
+func buildReviewSystemPrompt() string {
+	return `你是一位资深的公务员考试申论阅卷专家。你需要根据题目要求、给定材料和参考答案/评分标准，对考生答案进行专业、客观、公正的批改评分。
+
+## 评分原则
+1. 严格对照参考答案中的评分要点进行逐点给分
+2. 内容要点是评分核心，结构和语言是辅助项
+3. 要点得分采用"踩点给分"原则：答到关键词或同义表达即给分
+4. 总分不超过题目满分，各维度分之和应等于总分
+
+## 输出要求
+严格输出 JSON，不要输出 Markdown 代码块或其他格式。`
+}
+
+func buildReviewUserPrompt(question models.EssayQuestion, materialTexts []string, answerTexts []string, userAnswer string) string {
+	var sb strings.Builder
+
+	// ── 题目信息 ──
+	sb.WriteString("# 批改任务\n\n")
+	sb.WriteString("## 题目信息\n")
+	sb.WriteString(fmt.Sprintf("- 题型: %s\n", question.QuestionType))
+	sb.WriteString(fmt.Sprintf("- 满分: %d 分\n", question.MaxScore))
+	sb.WriteString(fmt.Sprintf("- 字数限制: %d 字\n\n", question.WordLimit))
+	sb.WriteString("### 题目原文\n")
+	sb.WriteString(question.QuestionText)
+	sb.WriteString("\n\n")
+
+	// ── 给定材料（截断避免 token 溢出） ──
+	if len(materialTexts) > 0 {
+		sb.WriteString("## 给定材料\n")
+		for i, mat := range materialTexts {
+			sb.WriteString(fmt.Sprintf("### 材料 %d\n", i+1))
+			runes := []rune(mat)
+			if len(runes) > 3000 {
+				sb.WriteString(string(runes[:2000]))
+				sb.WriteString("\n...[材料过长已截断]...\n")
+				sb.WriteString(string(runes[len(runes)-800:]))
+			} else {
+				sb.WriteString(mat)
+			}
+			sb.WriteString("\n\n")
+		}
+	}
+
+	// ── 参考答案/评分标准 ──
+	if len(answerTexts) > 0 {
+		sb.WriteString("## 参考答案与评分标准\n")
+		for i, ans := range answerTexts {
+			sb.WriteString(fmt.Sprintf("### 参考答案 %d\n", i+1))
+			sb.WriteString(ans)
+			sb.WriteString("\n\n")
+		}
+	}
+
+	// ── 考生答案 ──
+	sb.WriteString("## 考生答案\n")
+	sb.WriteString(userAnswer)
+	sb.WriteString("\n\n")
+
+	// ── 输出格式 ──
+	sb.WriteString("## 请输出 JSON 格式的批改结果\n\n")
+	sb.WriteString("```\n")
+	sb.WriteString(`{
+  "score": 得分(数字),
+  "summary": "总体评价(100字以内)",
+  "dimensions": [
+    {"name": "内容要点", "score": 分数, "max_score": 满分, "comment": "具体点评"},
+    {"name": "逻辑结构", "score": 分数, "max_score": 满分, "comment": "具体点评"},
+    {"name": "语言表达", "score": 分数, "max_score": 满分, "comment": "具体点评"}
+  ],
+  "scoring_detail": "逐要点对照评分的详细说明",
+  "highlights": [
+    {"type": "good", "text": "答案中的亮点摘录", "comment": "为什么好"},
+    {"type": "issue", "text": "答案中的问题摘录", "comment": "问题所在和改进建议"}
+  ],
+  "suggestions": ["改进建议1", "改进建议2"]
+}
+`)
+	sb.WriteString("```\n")
+
+	return sb.String()
+}
+
+func (s *EssayService) DeleteDocument(userID uint, documentID uint) error {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ? AND document_id = ?", userID, documentID).Delete(&models.EssaySectionRelation{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ? AND document_id = ?", userID, documentID).Delete(&models.EssayQuestionChunk{}).Error; err != nil {
+			return err
+		}
+		var questionIDs []uint
+		if err := tx.Model(&models.EssayQuestion{}).Where("user_id = ? AND document_id = ?", userID, documentID).Pluck("id", &questionIDs).Error; err != nil {
+			return err
+		}
+		if len(questionIDs) > 0 {
+			if err := tx.Where("user_id = ? AND question_id IN ?", userID, questionIDs).Delete(&models.EssayReview{}).Error; err != nil {
+				return err
+			}
+		}
+		if err := tx.Where("user_id = ? AND document_id = ?", userID, documentID).Delete(&models.EssayQuestion{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ? AND document_id = ?", userID, documentID).Delete(&models.EssaySection{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ? AND document_id = ?", userID, documentID).Delete(&models.EssayChunk{}).Error; err != nil {
+			return err
+		}
+		result := tx.Where("user_id = ? AND id = ?", userID, documentID).Delete(&models.EssayDocument{})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	})
 }
 
 func (s *EssayService) getDocument(userID uint, documentID uint) (*models.EssayDocument, error) {
@@ -292,123 +986,116 @@ func (s *EssayService) getDocument(userID uint, documentID uint) (*models.EssayD
 	return &document, nil
 }
 
-func splitEssayText(userID uint, documentID uint, rawText string) []models.EssayChunk {
-	rawText = sanitizePostgresText(rawText)
-	pageParts := splitPages(rawText)
-	chunks := make([]models.EssayChunk, 0)
-	chunkIndex := 1
-	for pageIndex, pageText := range pageParts {
-		for _, content := range splitParagraphChunks(pageText) {
-			chunks = append(chunks, models.EssayChunk{
-				BaseModel:  models.BaseModel{UserID: userID},
-				DocumentID: documentID,
-				PageNo:     pageIndex + 1,
-				ChunkIndex: chunkIndex,
-				Content:    content,
-				ChunkType:  EssayChunkUnknown,
-			})
-			chunkIndex++
-		}
-	}
-	return chunks
-}
+// ============= 以下为兼容/辅助函数 =============
 
-func splitPages(rawText string) []string {
-	normalized := strings.ReplaceAll(rawText, "\r\n", "\n")
-	re := regexp.MustCompile(`(?m)^-{3,}\s*page\s+\d+\s*-{3,}$`)
-	parts := re.Split(normalized, -1)
-	if len(parts) == 1 {
-		parts = strings.Split(normalized, "\f")
-	}
-	return nonEmptyStrings(parts)
-}
-
-func splitParagraphChunks(pageText string) []string {
-	parts := regexp.MustCompile(`\n\s*\n+`).Split(pageText, -1)
-	result := make([]string, 0)
-	for _, part := range parts {
-		text := strings.TrimSpace(sanitizePostgresText(part))
-		if text == "" {
+func normalizeEssayQuestionSections(sections []models.EssaySection) []models.EssaySection {
+	questionStartRe := regexp.MustCompile(`(?m)(?:^|\n)\s*((?:第[一二三四五六七八九十\d]+题)|(?:[一二三四五六七八九十]+、)|(?:\d+[.．、]))`)
+	normalized := make([]models.EssaySection, 0, len(sections))
+	for _, sec := range sections {
+		if sec.SectionType != string(parser.SectionQuestion) {
+			normalized = append(normalized, sec)
 			continue
 		}
-		if len([]rune(text)) <= 900 {
-			result = append(result, text)
+		matches := questionStartRe.FindAllStringSubmatchIndex(sec.Content, -1)
+		if len(matches) <= 1 {
+			if strings.TrimSpace(sec.QuestionNo) == "" {
+				sec.QuestionNo = fmt.Sprintf("%d", countQuestionSections(normalized)+1)
+			}
+			normalized = append(normalized, sec)
 			continue
 		}
-		result = append(result, splitLongText(text, 700)...)
-	}
-	return result
-}
-
-func splitLongText(text string, size int) []string {
-	runes := []rune(text)
-	result := make([]string, 0)
-	for start := 0; start < len(runes); start += size {
-		end := start + size
-		if end > len(runes) {
-			end = len(runes)
+		for i, match := range matches {
+			start := match[0]
+			if i > 0 && start < len(sec.Content) && sec.Content[start] == '\n' {
+				start++
+			}
+			end := len(sec.Content)
+			if i+1 < len(matches) {
+				end = matches[i+1][0]
+			}
+			content := strings.TrimSpace(sec.Content[start:end])
+			if content == "" {
+				continue
+			}
+			next := sec
+			next.ID = 0
+			next.Content = content
+			next.Title = ""
+			next.QuestionNo = questionNoFromMarker(sec.Content[match[2]:match[3]])
+			if next.QuestionNo == "" {
+				next.QuestionNo = fmt.Sprintf("%d", countQuestionSections(normalized)+1)
+			}
+			normalized = append(normalized, next)
 		}
-		result = append(result, strings.TrimSpace(string(runes[start:end])))
 	}
-	return result
+	return normalized
 }
 
-func classifyEssayChunk(content string, documentRole string) (string, float64, string) {
-	text := strings.ToLower(content)
-	switch {
-	case strings.Contains(content, "参考答案") || strings.Contains(content, "参考要点") || strings.Contains(content, "答案要点"):
-		return EssayChunkReferenceAnswer, 0.82, "命中参考答案关键词"
-	case strings.Contains(content, "评分") || strings.Contains(content, "赋分") || strings.Contains(content, "每点") || strings.Contains(content, "分）"):
-		return EssayChunkScoringRule, 0.76, "命中评分规则关键词"
-	case strings.Contains(content, "请根据") || strings.Contains(content, "请结合") || strings.Contains(content, "作答要求") || strings.Contains(content, "要求："):
-		return EssayChunkQuestion, 0.8, "命中题目/作答要求关键词"
-	case strings.Contains(content, "解析") || strings.Contains(content, "思路") || strings.Contains(text, "explanation"):
-		return EssayChunkExplanation, 0.7, "命中解析说明关键词"
-	case documentRole == "answer_key":
-		return EssayChunkReferenceAnswer, 0.62, "文档类型为答案卷，未命中评分关键词时默认归为参考答案"
-	case documentRole == "explanation":
-		return EssayChunkExplanation, 0.62, "文档类型为解析卷，默认归为解析说明"
-	case documentRole == "question_paper" && looksLikeQuestion(content):
-		return EssayChunkQuestion, 0.66, "文档类型为题目卷，并命中题目句式"
-	case documentRole == "question_paper":
-		return EssayChunkMaterial, 0.6, "文档类型为题目卷，未命中题目句式时默认归为材料"
-	case strings.Contains(content, "材料") || strings.Contains(content, "资料") || len([]rune(content)) > 180:
-		return EssayChunkMaterial, 0.68, "按材料关键词或长段落归类"
-	default:
-		return EssayChunkUnknown, 0.4, "未命中稳定规则，等待 LLM 分类"
+func countQuestionSections(sections []models.EssaySection) int {
+	count := 0
+	for _, sec := range sections {
+		if sec.SectionType == string(parser.SectionQuestion) {
+			count++
+		}
 	}
+	return count
 }
 
-func looksLikeQuestion(content string) bool {
-	return strings.Contains(content, "请") ||
-		strings.Contains(content, "要求") ||
-		strings.Contains(content, "概括") ||
-		strings.Contains(content, "分析") ||
-		strings.Contains(content, "提出") ||
-		strings.Contains(content, "不超过") ||
-		strings.Contains(content, "字")
-}
-
-func relation(userID uint, documentID uint, questionID uint, chunkID uint, relationType string) models.EssayQuestionChunk {
-	return models.EssayQuestionChunk{
-		BaseModel:    models.BaseModel{UserID: userID},
-		DocumentID:   documentID,
-		QuestionID:   questionID,
-		ChunkID:      chunkID,
-		RelationType: relationType,
+func questionNoFromMarker(marker string) string {
+	marker = strings.TrimSpace(marker)
+	marker = strings.TrimSuffix(marker, "题")
+	marker = strings.TrimRight(marker, "、.．")
+	marker = strings.TrimPrefix(marker, "第")
+	if marker == "" {
+		return ""
 	}
+	if regexp.MustCompile(`^\d+$`).MatchString(marker) {
+		return marker
+	}
+	if value := chineseNumber(marker); value > 0 {
+		return fmt.Sprintf("%d", value)
+	}
+	return marker
 }
 
-func questionTitle(content string, index int) string {
+func chineseNumber(value string) int {
+	digits := map[rune]int{'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9}
+	if value == "十" {
+		return 10
+	}
+	runes := []rune(value)
+	if len(runes) == 1 {
+		return digits[runes[0]]
+	}
+	if len(runes) == 2 && runes[0] == '十' {
+		return 10 + digits[runes[1]]
+	}
+	if len(runes) == 2 && runes[1] == '十' {
+		return digits[runes[0]] * 10
+	}
+	if len(runes) == 3 && runes[1] == '十' {
+		return digits[runes[0]]*10 + digits[runes[2]]
+	}
+	return 0
+}
+
+func questionTitle(documentTitle string, content string, questionNo string, index int) string {
 	line := strings.TrimSpace(strings.Split(content, "\n")[0])
 	runes := []rune(line)
-	if len(runes) > 28 {
-		line = string(runes[:28]) + "..."
+	if len(runes) > 24 {
+		line = string(runes[:24]) + "..."
+	}
+	if strings.TrimSpace(questionNo) == "" {
+		questionNo = fmt.Sprintf("%d", index)
+	}
+	prefix := strings.TrimSpace(documentTitle)
+	if prefix == "" {
+		prefix = "申论"
 	}
 	if line == "" {
-		return fmt.Sprintf("申论题目 %d", index)
+		return fmt.Sprintf("%s - 第%s题", prefix, questionNo)
 	}
-	return line
+	return fmt.Sprintf("%s - 第%s题 - %s", prefix, questionNo, line)
 }
 
 func guessQuestionType(content string) string {
@@ -425,6 +1112,9 @@ func guessQuestionType(content string) string {
 	}
 	if strings.Contains(content, "文章") || strings.Contains(content, "议论文") {
 		return "文章论述题"
+	}
+	if strings.Contains(content, "分析") {
+		return "综合分析题"
 	}
 	return "待确认"
 }
@@ -484,24 +1174,11 @@ func truncateNote(value string) string {
 	return string(runes)
 }
 
-func nonEmptyStrings(parts []string) []string {
-	result := make([]string, 0)
-	for _, part := range parts {
-		if strings.TrimSpace(part) != "" {
-			result = append(result, part)
-		}
-	}
-	if len(result) == 0 {
-		return []string{""}
-	}
-	return result
-}
-
-func maxPageNo(chunks []models.EssayChunk) int {
+func maxSectionPageEnd(sections []models.EssaySection) int {
 	maxValue := 0
-	for _, chunk := range chunks {
-		if chunk.PageNo > maxValue {
-			maxValue = chunk.PageNo
+	for _, sec := range sections {
+		if sec.PageEnd > maxValue {
+			maxValue = sec.PageEnd
 		}
 	}
 	return maxValue

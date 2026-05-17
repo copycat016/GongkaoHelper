@@ -1,5 +1,7 @@
 import { api } from "./request";
-import { questionsMock } from "./mockData";
 
-export const getQuestions = () => api.get("/questions", null, { mock: questionsMock });
+export const getQuestions = () => api.get("/questions");
+export const getQuestion = (id) => api.get(`/questions/${id}`);
 export const saveQuestion = (data) => api.post("/questions", data, { mock: data });
+export const updateQuestion = (id, data) => api.put(`/questions/${id}`, data);
+export const deleteQuestion = (id) => api.delete(`/questions/${id}`);

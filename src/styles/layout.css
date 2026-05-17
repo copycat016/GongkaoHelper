@@ -6,7 +6,10 @@
 }
 
 .app-sider {
-  position: relative;
+  position: sticky !important;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
   z-index: 1;
   background: rgba(255, 255, 255, 0.66) !important;
   backdrop-filter: blur(22px);
@@ -17,48 +20,98 @@
 
 .brand-box {
   height: 72px;
-  padding: 22px 18px 10px;
+  padding: 16px 14px 10px;
   display: flex;
   align-items: center;
 }
 
 .brand-mark {
-  color: var(--primary-blue);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", sans-serif;
-  font-size: 24px;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  color: var(--deep-blue-gray);
+  font-size: 20px;
   font-weight: 900;
   line-height: 1;
 }
 
-.app-menu.ant-menu {
-  padding: 8px 10px 18px;
-  border-inline-end: none !important;
-  background: transparent;
+.brand-mark.collapsed {
+  justify-content: center;
+  width: 100%;
 }
 
-.app-menu .ant-menu-item {
+.brand-icon {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 13px;
+  object-fit: cover;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary-blue) 18%, transparent);
+}
+
+.brand-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-menu {
+  display: grid;
+  gap: 5px;
+  max-height: calc(100vh - 72px);
+  padding: 8px 10px 18px;
+  overflow-y: auto;
+}
+
+.app-menu-item {
+  appearance: none;
+  display: flex;
+  width: 100%;
   height: 42px;
-  line-height: 42px;
-  margin: 5px 0;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  border: 0;
   border-radius: 14px;
   color: var(--text-blue-gray);
+  background: transparent;
+  font: inherit;
   font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 
-.app-menu .ant-menu-item:hover,
-.app-menu .ant-menu-item-selected {
+.app-menu-item:hover,
+.app-menu-item.selected,
+.app-menu-item:focus-visible {
   color: var(--deep-blue-gray) !important;
   background: linear-gradient(135deg, rgba(220, 238, 255, 0.92), rgba(251, 245, 255, 0.88)) !important;
 }
 
-.app-menu .ant-menu-item-selected {
+.app-menu-item.selected {
   box-shadow: 0 10px 22px rgba(106, 167, 232, 0.16);
   font-weight: 900;
 }
 
-.app-menu .ant-menu-item-selected::after {
-  display: none;
+.app-menu-icon {
+  display: grid;
+  width: 20px;
+  flex: 0 0 20px;
+  place-items: center;
+  font-size: 16px;
+}
+
+.app-menu-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .main-layout {
@@ -128,7 +181,7 @@
 }
 
 .app-content {
-  padding: 28px 28px 92px;
+  padding: 28px;
 }
 
 .page-shell {
@@ -203,7 +256,7 @@
     justify-content: center;
   }
 
-  .app-menu.ant-menu {
+  .app-menu {
     padding-inline: 8px;
   }
 
@@ -233,7 +286,7 @@
   }
 
   .app-content {
-    padding: 22px 22px 100px;
+    padding: 22px;
   }
 }
 
@@ -250,7 +303,7 @@
   }
 
   .app-content {
-    padding: 18px 18px 104px;
+    padding: 18px;
   }
 }
 

@@ -29,3 +29,11 @@ func uintParam(c *gin.Context, name string) (uint, error) {
 	}
 	return uint(value), nil
 }
+
+func uintFromString(raw string) uint {
+	value, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return uint(value)
+}

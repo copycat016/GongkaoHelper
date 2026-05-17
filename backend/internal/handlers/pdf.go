@@ -64,3 +64,56 @@ func (h *PDFHandler) ParseTest(c *gin.Context) {
 		"pages":       pages,
 	})
 }
+
+func (h *PDFHandler) ParseTool(c *gin.Context) {
+	rawText := c.PostForm("raw_text")
+	ocrJSON := c.PostForm("ocr_json")
+	adapter := c.PostForm("adapter")
+
+	var tempPath string
+	var originalName string
+	file, err := c.FormFile("file")
+	if err == nil {
+		ext := strings.ToLower(filepath.Ext(file.Filename))
+		if ext != ".pdf" {
+			response.Error(c, http.StatusBadRequest, 40082, "file must be a pdf")
+			return
+		}
+		if err := os.MkdirAll(filepath.Join(os.TempDir(), "gkweb-parse-tool"), 0755); err != nil {
+			response.Error(c, http.StatusInternalServerError, 50081, "prepare temp directory failed")
+			return
+		}
+		tempPath = filepath.Join(os.TempDir(), "gkweb-parse-tool", fmt.Sprintf("%d%s", time.Now().UnixNano(), ext))
+		defer os.Remove(tempPath)
+		if err := c.SaveUploadedFile(file, tempPath); err != nil {
+			response.Error(c, http.StatusInternalServerError, 50082, "save temp pdf failed")
+			return
+		}
+		originalName = file.Filename
+	}
+
+	var ocrRaw any
+	if strings.TrimSpace(ocrJSON) != "" {
+		ocrRaw = ocrJSON
+	}
+	result, err := services.ParseDocumentSource(services.DocumentParseInput{
+		RawText:    rawText,
+		PDFPath:    tempPath,
+		OCRAdapter: adapter,
+		OCRRaw:     ocrRaw,
+	})
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, 40083, err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{
+		"file_name":  originalName,
+		"source":     result.Source,
+		"text":       result.Text,
+		"line_count": result.Lines,
+		"page_count": len(result.Pages),
+		"quality":    result.Quality,
+		"pages":      result.Pages,
+	})
+}
