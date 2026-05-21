@@ -45,7 +45,7 @@ func (h *PDFHandler) ParseTest(c *gin.Context) {
 		return
 	}
 
-	pages, quality, err := services.ExtractPDFTextPagesForTest(tempPath)
+	pages, quality, sourceEngine, err := services.ExtractPDFTextPagesForTest(tempPath)
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, 40083, err.Error())
 		return
@@ -57,11 +57,13 @@ func (h *PDFHandler) ParseTest(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{
-		"file_name":   file.Filename,
-		"page_count":  len(pages),
-		"total_chars": totalChars,
-		"quality":     quality,
-		"pages":       pages,
+		"file_name":     file.Filename,
+		"page_count":    len(pages),
+		"total_chars":   totalChars,
+		"source":        "pdf_file",
+		"source_engine": sourceEngine,
+		"quality":       quality,
+		"pages":         pages,
 	})
 }
 
@@ -108,12 +110,13 @@ func (h *PDFHandler) ParseTool(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{
-		"file_name":  originalName,
-		"source":     result.Source,
-		"text":       result.Text,
-		"line_count": result.Lines,
-		"page_count": len(result.Pages),
-		"quality":    result.Quality,
-		"pages":      result.Pages,
+		"file_name":     originalName,
+		"source":        result.Source,
+		"source_engine": result.SourceEngine,
+		"text":          result.Text,
+		"line_count":    result.Lines,
+		"page_count":    len(result.Pages),
+		"quality":       result.Quality,
+		"pages":         result.Pages,
 	})
 }

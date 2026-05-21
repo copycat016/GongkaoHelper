@@ -17,13 +17,11 @@ const { Sider, Header, Content } = Layout;
 
 const pageMeta = {
   "/": { title: "首页总览", desc: "今日任务与学习状态" },
-  "/ocr": { title: "OCR 识题", desc: "图片识别与结构化" },
-  "/questions": { title: "题库管理", desc: "分类与检索" },
-  "/mistakes": { title: "错题库", desc: "复习与掌握度" },
+  "/intake": { title: "录入器", desc: "图片、PDF 与文本统一录入" },
   "/essay": { title: "申论批改", desc: "答案评估" },
   "/pomodoro": { title: "番茄钟", desc: "专注计时" },
   "/music": { title: "音乐播放器", desc: "本地音乐" },
-  "/study": { title: "学习管理", desc: "计划、日志与日历" },
+  "/study": { title: "学习管理", desc: "学习日志与补登" },
   "/ai": { title: "配置", desc: "模型、Prompt、OCR、解析与备份" },
   "/llm": { title: "LLM 配置", desc: "模型与服务商" },
   "/prompts": { title: "Prompt 配置", desc: "提示词模板" },
@@ -43,8 +41,8 @@ function AppLayout() {
     if (["/logs", "/plans", "/calendar"].includes(location.pathname)) {
       return "/study";
     }
-    if (location.pathname.startsWith("/questions/")) {
-      return "/questions";
+    if (["/ocr", "/questions", "/mistakes"].includes(location.pathname) || location.pathname.startsWith("/questions/")) {
+      return "/intake";
     }
     const exact = menuItems.find((item) => item.key === location.pathname);
     return exact ? exact.key : "/";

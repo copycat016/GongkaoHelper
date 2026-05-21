@@ -35,6 +35,11 @@ type essayReviewPayload struct {
 	UserAnswer string `json:"user_answer"`
 }
 
+type essayRelationsPayload struct {
+	MaterialIDs []uint `json:"material_ids"`
+	AnswerIDs   []uint `json:"answer_ids"`
+}
+
 func NewEssayHandler(service *services.EssayService) *EssayHandler {
 	return &EssayHandler{service: service}
 }
@@ -243,6 +248,90 @@ func (h *EssayHandler) ListQuestions(c *gin.Context) {
 		return
 	}
 	response.Success(c, questions)
+}
+
+func (h *EssayHandler) CreateQuestion(c *gin.Context) {
+	var payload services.EssayQuestionPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		response.Error(c, http.StatusBadRequest, 40077, "invalid question payload")
+		return
+	}
+	question, err := h.service.CreateQuestion(userIDFromRequest(c), payload)
+	if err != nil {
+		writeServiceError(c, err, "create essay question failed")
+		return
+	}
+	response.Success(c, question)
+}
+
+func (h *EssayHandler) UpdateQuestion(c *gin.Context) {
+	id, err := uintParam(c, "id")
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, 40073, "invalid question id")
+		return
+	}
+	var payload services.EssayQuestionPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		response.Error(c, http.StatusBadRequest, 40077, "invalid question payload")
+		return
+	}
+	question, err := h.service.UpdateQuestion(userIDFromRequest(c), id, payload)
+	if err != nil {
+		writeServiceError(c, err, "update essay question failed")
+		return
+	}
+	response.Success(c, question)
+}
+
+func (h *EssayHandler) DeleteQuestion(c *gin.Context) {
+	id, err := uintParam(c, "id")
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, 40073, "invalid question id")
+		return
+	}
+	if err := h.service.DeleteQuestion(userIDFromRequest(c), id); err != nil {
+		writeServiceError(c, err, "delete essay question failed")
+		return
+	}
+	response.Success(c, gin.H{"deleted": true})
+}
+
+func (h *EssayHandler) UpdateSection(c *gin.Context) {
+	id, err := uintParam(c, "id")
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, 40078, "invalid section id")
+		return
+	}
+	var payload services.EssaySectionPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		response.Error(c, http.StatusBadRequest, 40079, "invalid section payload")
+		return
+	}
+	section, err := h.service.UpdateSection(userIDFromRequest(c), id, payload)
+	if err != nil {
+		writeServiceError(c, err, "update essay section failed")
+		return
+	}
+	response.Success(c, section)
+}
+
+func (h *EssayHandler) ReplaceQuestionRelations(c *gin.Context) {
+	id, err := uintParam(c, "id")
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, 40073, "invalid question id")
+		return
+	}
+	var payload essayRelationsPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		response.Error(c, http.StatusBadRequest, 40080, "invalid relation payload")
+		return
+	}
+	question, err := h.service.ReplaceQuestionRelations(userIDFromRequest(c), id, payload.MaterialIDs, payload.AnswerIDs)
+	if err != nil {
+		writeServiceError(c, err, "replace essay question relations failed")
+		return
+	}
+	response.Success(c, question)
 }
 
 func (h *EssayHandler) ReviewAnswer(c *gin.Context) {

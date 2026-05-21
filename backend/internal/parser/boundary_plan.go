@@ -33,13 +33,13 @@ type BoundaryPlan struct {
 type BoundarySection struct {
 	SectionType        string   `json:"section_type"`
 	Title              string   `json:"title"`
-	StartLine          int      `json:"start_line"`                      // 新流程：起始行号（含）
-	EndLine            int      `json:"end_line"`                        // 新流程：结束行号（含）
-	StartBlockID       string   `json:"start_block_id,omitempty"`        // 旧流程兼容
-	EndBlockID         string   `json:"end_block_id,omitempty"`          // 旧流程兼容
-	QuestionNo         string   `json:"question_no,omitempty"`           // 题号（question 必填）
-	RelatedQuestionNos []string `json:"related_question_nos,omitempty"`  // 关联题号（answer 用）
-	MaterialNos        []string `json:"material_nos,omitempty"`          // 引用材料编号（question 用）
+	StartLine          int      `json:"start_line"`                     // 新流程：起始行号（含）
+	EndLine            int      `json:"end_line"`                       // 新流程：结束行号（含）
+	StartBlockID       string   `json:"start_block_id,omitempty"`       // 旧流程兼容
+	EndBlockID         string   `json:"end_block_id,omitempty"`         // 旧流程兼容
+	QuestionNo         string   `json:"question_no,omitempty"`          // 题号（question 必填）
+	RelatedQuestionNos []string `json:"related_question_nos,omitempty"` // 关联题号（answer 用）
+	MaterialNos        []string `json:"material_nos,omitempty"`         // 引用材料编号（question 用）
 	Confidence         float64  `json:"confidence"`
 	Reason             string   `json:"reason"`
 }

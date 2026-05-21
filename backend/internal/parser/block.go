@@ -58,10 +58,10 @@ type Section struct {
 	PageEnd            int         `json:"page_end"`
 	Confidence         float64     `json:"confidence"`
 	Reason             string      `json:"reason"`
-	IsDividerStart     bool        `json:"is_divider_start"`          // 该 section 是否由 divider 锚点触发
-	QuestionNo         string      `json:"question_no,omitempty"`     // 题号（question 区域使用）
+	IsDividerStart     bool        `json:"is_divider_start"`               // 该 section 是否由 divider 锚点触发
+	QuestionNo         string      `json:"question_no,omitempty"`          // 题号（question 区域使用）
 	RelatedQuestionNos []string    `json:"related_question_nos,omitempty"` // 关联题号（answer/material 使用）
-	MaterialNos        []string    `json:"material_nos,omitempty"`    // 引用的材料编号（question 使用）
+	MaterialNos        []string    `json:"material_nos,omitempty"`         // 引用的材料编号（question 使用）
 }
 
 // BlockRef 用于在其他结构中引用 Block。

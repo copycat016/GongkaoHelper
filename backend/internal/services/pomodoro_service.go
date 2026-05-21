@@ -94,7 +94,7 @@ func (s *PomodoroService) TodayStats(userID uint) (*PomodoroStats, error) {
 
 func subjectFromTaskType(taskType string) string {
 	switch taskType {
-	case "行测刷题", "错题复习":
+	case "行测刷题":
 		return "行测"
 	case "申论练习":
 		return "申论"

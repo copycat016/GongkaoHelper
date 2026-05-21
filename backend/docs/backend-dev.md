@@ -24,11 +24,32 @@ backend/
 └─ go.sum
 ```
 
-## 1. 启动 PostgreSQL
+## 1. 选择数据库
+
+默认使用 SQLite，本地无需启动数据库服务：
 
 ```bash
 cd backend
 cp .env.example .env
+```
+
+`.env` 中保持：
+
+```env
+DB_DRIVER=sqlite
+SQLITE_PATH=./data/gkweb.db
+```
+
+如需切换 PostgreSQL，将 `.env` 改为：
+
+```env
+DB_DRIVER=postgres
+```
+
+然后启动 PostgreSQL：
+
+```bash
+cd backend
 docker compose --env-file .env up -d
 ```
 
@@ -269,6 +290,26 @@ curl -X POST http://localhost:21080/api/essay/documents/1/assemble
 
 curl http://localhost:21080/api/essay/documents/1/questions
 
+# 手动新增 / 编辑 / 删除题目
+curl -X POST http://localhost:21080/api/essay/questions \
+  -H "Content-Type: application/json" \
+  -d '{"document_id": 1, "question_no": "1", "title": "第一题", "question_type": "归纳概括题", "question_text": "请概括材料中的问题。", "max_score": 20, "word_limit": 300}'
+
+curl -X PUT http://localhost:21080/api/essay/questions/1 \
+  -H "Content-Type: application/json" \
+  -d '{"question_no": "1", "title": "第一题", "question_type": "提出对策题", "question_text": "请提出对策。", "max_score": 25, "word_limit": 400, "scoring_rubric": "按要点给分"}'
+
+curl -X DELETE http://localhost:21080/api/essay/questions/1
+
+# 编辑分段与重置题目关联
+curl -X PUT http://localhost:21080/api/essay/sections/1 \
+  -H "Content-Type: application/json" \
+  -d '{"section_type": "material", "title": "材料一", "content": "材料内容", "related_question_nos": "1"}'
+
+curl -X POST http://localhost:21080/api/essay/questions/1/relations \
+  -H "Content-Type: application/json" \
+  -d '{"material_ids": [1, 2], "answer_ids": [5]}'
+
 # 批改（LLM 批改已接入，无 LLM 时回退启发式评分）
 curl -X POST http://localhost:21080/api/essay/questions/1/review \
   -H "Content-Type: application/json" \
@@ -294,6 +335,8 @@ curl -X POST http://localhost:21080/api/essay/questions/1/review \
 | --- | --- | --- |
 | `SERVER_PORT` | 后端监听端口 | `21080` |
 | `GIN_MODE` | Gin 运行模式 | `debug` |
+| `DB_DRIVER` | 数据库类型，支持 `sqlite` / `postgres` / `postgresql` | `sqlite` |
+| `SQLITE_PATH` | SQLite 数据库文件路径 | `./data/gkweb.db` |
 | `DB_HOST` | PostgreSQL 主机 | `localhost` |
 | `DB_PORT` | PostgreSQL 宿主机端口 | `21432` |
 | `DB_USER` | 数据库用户 | `gkweb` |
@@ -333,9 +376,8 @@ pdftotext -v
 
 下一阶段建议继续做细节完善：
 
-1. 把前端错题库页接到真实 `/api/mistakes`（后端已完成，前端仍用 mock）。
-2. 给学习计划增加编辑弹窗和阶段筛选、"AI 生成计划" 接真实 LLM。
-3. 给学习日志增加周/月统计。
+1. 申论 Prompt 按题型分发，并允许单题自定义模板。
+2. 批改记录保存 prompt、raw request 和 raw response，方便回放排错。
+3. 给录入器补扫描件 PDF 转图片 + OCR 流程。
 4. 实现 OCR AI 修正接口和 Prompt 测试接口。
 5. 引入用户认证和 root/admin 权限模型，替换当前 `X-User-ID` 临时方案。
-6. PDF 扫描件转图片 + OCR 流程。

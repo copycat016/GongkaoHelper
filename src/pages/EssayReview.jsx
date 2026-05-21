@@ -1,15 +1,21 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Alert,
   Button,
   Card,
   Col,
+  Checkbox,
   Collapse,
   Divider,
+  Drawer,
   Empty,
   Form,
   Input,
+  InputNumber,
   List,
+  Modal,
+  Popconfirm,
   Progress,
   Row,
   Select,
@@ -25,25 +31,33 @@ import {
   CheckCircleOutlined,
   CloudUploadOutlined,
   DeleteOutlined,
+  EditOutlined,
   ExclamationCircleOutlined,
   FileSearchOutlined,
   HighlightOutlined,
+  PlusOutlined,
   RobotOutlined,
   StarOutlined,
 } from "@ant-design/icons";
 import PageHeader from "../components/PageHeader";
 import {
   assembleEssayQuestions,
+  createEssayQuestion,
   createEssayDocument,
+  deleteEssayQuestion,
   deleteEssayDocument,
   debugEssayBoundary,
   getEssayDocuments,
   getEssayQuestions,
   getEssaySections,
   parseEssayDocument,
+  replaceEssayQuestionRelations,
   reviewEssayQuestion,
+  updateEssayQuestion,
+  updateEssaySection,
 } from "../api/essay";
 import { getModels } from "../api/llm";
+import { getPrompts } from "../api/prompts";
 
 const { Text, Paragraph } = Typography;
 
@@ -69,20 +83,38 @@ const documentRoleLabels = {
   explanation: "解析卷",
 };
 
+const questionTypeOptions = ["归纳概括题", "综合分析题", "提出对策题", "应用文写作题", "文章论述题", "公文写作题", "其他"]
+  .map((value) => ({ value, label: value }));
+
+const sectionTypeOptions = Object.entries(sectionTypeMeta).map(([value, meta]) => ({
+  value,
+  label: meta.label,
+}));
+
 function EssayReview() {
+  const location = useLocation();
   const [uploadForm] = Form.useForm();
   const [reviewForm] = Form.useForm();
+  const [questionForm] = Form.useForm();
+  const [sectionForm] = Form.useForm();
   const [documents, setDocuments] = useState([]);
   const [selectedDocumentId, setSelectedDocumentId] = useState();
   const [sections, setSections] = useState([]);
   const [questions, setQuestions] = useState([]);
   const [models, setModels] = useState([]);
+  const [prompts, setPrompts] = useState([]);
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [reviewResult, setReviewResult] = useState(null);
   const [debugResult, setDebugResult] = useState(null);
   const [operations, setOperations] = useState([]);
   const [selectedQuestionId, setSelectedQuestionId] = useState(null);
+  const [questionDrawerOpen, setQuestionDrawerOpen] = useState(false);
+  const [editingQuestion, setEditingQuestion] = useState(null);
+  const [sectionDrawerOpen, setSectionDrawerOpen] = useState(false);
+  const [editingSection, setEditingSection] = useState(null);
+  const [materialSelection, setMaterialSelection] = useState([]);
+  const [answerSelection, setAnswerSelection] = useState([]);
 
   const selectedDocument = useMemo(
     () => documents.find((item) => item.id === selectedDocumentId),
@@ -101,48 +133,102 @@ function EssayReview() {
     return (essay.length ? essay : enabled).map(modelOption);
   }, [models]);
 
+  const promptOptions = useMemo(() => (
+    prompts
+      .filter((item) => item.enabled !== false)
+      .map((item) => ({ value: item.id, label: `${item.name}${item.version ? ` · ${item.version}` : ""}` }))
+  ), [prompts]);
+
   // 当选中题目时，从 sections 提取关联的材料和答案
   const selectedQuestion = useMemo(
     () => questions.find((q) => q.id === selectedQuestionId),
     [questions, selectedQuestionId]
   );
 
+  const materialSections = useMemo(
+    () => sections.filter((s) => s.section_type === "material"),
+    [sections]
+  );
+
+  const answerSections = useMemo(
+    () => sections.filter((s) => s.section_type === "answer" || s.section_type === "analysis"),
+    [sections]
+  );
+
   const relatedMaterials = useMemo(() => {
     if (!selectedQuestion) return [];
-    return sections.filter((s) => s.section_type === "material");
-  }, [sections, selectedQuestion]);
+    const ids = selectedQuestion.material_section_ids || [];
+    if (ids.length > 0) return materialSections.filter((s) => ids.includes(s.id));
+    return materialSections;
+  }, [materialSections, selectedQuestion]);
 
   const relatedAnswers = useMemo(() => {
     if (!selectedQuestion) return [];
+    const ids = selectedQuestion.answer_section_ids || [];
+    if (ids.length > 0) return answerSections.filter((s) => ids.includes(s.id));
     const qNo = selectedQuestion.question_no;
     // 优先查找 related_question_nos 精确匹配的 answer
-    const matched = sections.filter((s) => {
-      if (s.section_type !== "answer") return false;
+    const matched = answerSections.filter((s) => {
       const relNos = (s.related_question_nos || "").split(",").map((n) => n.trim()).filter(Boolean);
       return relNos.includes(qNo);
     });
     // 如果精确匹配无结果，返回所有 answer
-    return matched.length > 0 ? matched : sections.filter((s) => s.section_type === "answer");
-  }, [sections, selectedQuestion]);
+    return matched.length > 0 ? matched : answerSections;
+  }, [answerSections, selectedQuestion]);
+
+  const loadSelectedDocumentData = useCallback(async (documentId = selectedDocumentId) => {
+    if (!documentId) return;
+    const [nextSections, nextQuestions] = await Promise.all([
+      getEssaySections(documentId).catch(() => []),
+      getEssayQuestions(documentId).catch(() => []),
+    ]);
+    setSections(nextSections || []);
+    setQuestions(nextQuestions || []);
+    setActiveStep(stepFromState(selectedDocument, nextSections || [], nextQuestions || []));
+    setReviewResult(null);
+  }, [selectedDocumentId, selectedDocument]);
 
   useEffect(() => {
     loadDocuments();
     getModels().then((items) => setModels(items || [])).catch(() => {});
+    getPrompts().then((items) => setPrompts(items || [])).catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (!selectedDocumentId) return;
-    Promise.all([
-      getEssaySections(selectedDocumentId).catch(() => []),
-      getEssayQuestions(selectedDocumentId).catch(() => []),
-    ]).then(([nextSections, nextQuestions]) => {
-      setSections(nextSections || []);
-      setQuestions(nextQuestions || []);
-      setActiveStep(stepFromState(selectedDocument, nextSections || [], nextQuestions || []));
-      setSelectedQuestionId(null);
-      setReviewResult(null);
+    const params = new URLSearchParams(location.search);
+    if (params.get("from") !== "intake") return;
+    const intakeText = sessionStorage.getItem("intake_text") || "";
+    if (!intakeText.trim()) return;
+    uploadForm.setFieldsValue({
+      raw_text: intakeText,
+      title: uploadForm.getFieldValue("title") || "录入器文本",
+      document_role: uploadForm.getFieldValue("document_role") || "combined",
     });
-  }, [selectedDocumentId, selectedDocument]);
+    message.success("已填入录入器文本");
+  }, [location.search, uploadForm]);
+
+  useEffect(() => {
+    if (!selectedDocumentId) return;
+    loadSelectedDocumentData(selectedDocumentId).then(() => {
+      setSelectedQuestionId(null);
+    });
+  }, [selectedDocumentId, loadSelectedDocumentData]);
+
+  useEffect(() => {
+    if (!selectedQuestion) {
+      setMaterialSelection([]);
+      setAnswerSelection([]);
+      return;
+    }
+    const materialIds = selectedQuestion.material_section_ids?.length
+      ? selectedQuestion.material_section_ids
+      : relatedMaterials.map((item) => item.id);
+    const answerIds = selectedQuestion.answer_section_ids?.length
+      ? selectedQuestion.answer_section_ids
+      : relatedAnswers.map((item) => item.id);
+    setMaterialSelection(materialIds);
+    setAnswerSelection(answerIds);
+  }, [selectedQuestion, relatedMaterials, relatedAnswers]);
 
   const loadDocuments = async () => {
     const items = await getEssayDocuments().catch(() => []);
@@ -211,6 +297,16 @@ function EssayReview() {
 
   const handleParse = async () => {
     if (!selectedDocumentId) return;
+    Modal.confirm({
+      title: "确认重新解析？",
+      content: "重新解析会用当前文档内容重建分段和题目，可能覆盖已经手动修正的题面、分段和关联。",
+      okText: "继续解析",
+      cancelText: "取消",
+      onOk: runParse,
+    });
+  };
+
+  const runParse = async () => {
     try {
       await runOperation("重新解析", async () => {
         const result = await parseEssayDocument(selectedDocumentId, {
@@ -297,6 +393,89 @@ function EssayReview() {
     setSelectedQuestionId(questionId);
     setReviewResult(null);
     reviewForm.setFieldsValue({ question_id: questionId });
+  };
+
+  const openQuestionDrawer = (question = null) => {
+    setEditingQuestion(question);
+    questionForm.setFieldsValue({
+      document_id: question?.document_id || selectedDocumentId,
+      question_no: question?.question_no || "",
+      title: question?.title || "",
+      question_type: question?.question_type || "",
+      question_text: question?.question_text || "",
+      max_score: question?.max_score || 100,
+      word_limit: question?.word_limit || 500,
+      scoring_rubric: question?.scoring_rubric || "",
+      custom_prompt_id: question?.custom_prompt_id || undefined,
+    });
+    setQuestionDrawerOpen(true);
+  };
+
+  const handleSaveQuestion = async () => {
+    const values = await questionForm.validateFields();
+    await runOperation(editingQuestion ? "保存题目" : "新建题目", async () => {
+      const payload = {
+        ...values,
+        document_id: Number(values.document_id || selectedDocumentId),
+        max_score: Number(values.max_score || 0),
+        word_limit: Number(values.word_limit || 0),
+      };
+      const saved = editingQuestion
+        ? await updateEssayQuestion(editingQuestion.id, payload)
+        : await createEssayQuestion(payload);
+      setQuestionDrawerOpen(false);
+      setEditingQuestion(null);
+      await loadSelectedDocumentData(saved.document_id || selectedDocumentId);
+      setSelectedQuestionId(saved.id);
+      message.success("题目已保存");
+    });
+  };
+
+  const handleDeleteQuestion = async (questionId) => {
+    await runOperation("删除题目", async () => {
+      await deleteEssayQuestion(questionId);
+      if (selectedQuestionId === questionId) {
+        setSelectedQuestionId(null);
+      }
+      await loadSelectedDocumentData();
+      message.success("题目已删除");
+    });
+  };
+
+  const openSectionDrawer = (section) => {
+    setEditingSection(section);
+    sectionForm.setFieldsValue({
+      section_type: section.section_type,
+      title: section.title,
+      content: section.content,
+      question_no: section.question_no,
+      related_question_nos: section.related_question_nos,
+    });
+    setSectionDrawerOpen(true);
+  };
+
+  const handleSaveSection = async () => {
+    const values = await sectionForm.validateFields();
+    await runOperation("保存分段", async () => {
+      await updateEssaySection(editingSection.id, values);
+      setSectionDrawerOpen(false);
+      setEditingSection(null);
+      await loadSelectedDocumentData();
+      message.success("分段已保存");
+    });
+  };
+
+  const handleSaveRelations = async () => {
+    if (!selectedQuestion) return;
+    await runOperation("保存关联", async () => {
+      const saved = await replaceEssayQuestionRelations(selectedQuestion.id, {
+        material_ids: materialSelection,
+        answer_ids: answerSelection,
+      });
+      await loadSelectedDocumentData(saved.document_id || selectedDocumentId);
+      setSelectedQuestionId(selectedQuestion.id);
+      message.success("关联已保存");
+    });
   };
 
   const sectionStats = useMemo(() => summarizeSections(sections), [sections]);
@@ -435,7 +614,16 @@ function EssayReview() {
             )}
 
             {/* 题目列表 */}
-            <Card className="glass-card" title={`题目列表 (${questions.length})`} bordered={false}>
+            <Card
+              className="glass-card"
+              title={`题目列表 (${questions.length})`}
+              bordered={false}
+              extra={
+                <Button size="small" icon={<PlusOutlined />} disabled={!selectedDocumentId} onClick={() => openQuestionDrawer()}>
+                  新增
+                </Button>
+              }
+            >
               {questions.length === 0 ? (
                 <Empty description="暂无题目，请先上传 PDF 并选择切分模型" />
               ) : (
@@ -446,6 +634,32 @@ function EssayReview() {
                       className={q.id === selectedQuestionId ? "essay-document active" : "essay-document"}
                       onClick={() => handleQuestionSelect(q.id)}
                       style={{ cursor: "pointer" }}
+                      actions={[
+                        <Button
+                          key="edit"
+                          type="text"
+                          size="small"
+                          icon={<EditOutlined />}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openQuestionDrawer(q);
+                          }}
+                        />,
+                        <Popconfirm
+                          key="delete"
+                          title="删除题目？"
+                          description="会同时删除该题关联和历史批改记录。"
+                          onConfirm={() => handleDeleteQuestion(q.id)}
+                        >
+                          <Button
+                            type="text"
+                            danger
+                            size="small"
+                            icon={<DeleteOutlined />}
+                            onClick={(event) => event.stopPropagation()}
+                          />
+                        </Popconfirm>,
+                      ]}
                     >
                       <List.Item.Meta
                         title={
@@ -470,11 +684,55 @@ function EssayReview() {
 
             {/* 选中题目的详情：题目原文 + 关联材料 + 参考答案 */}
             {selectedQuestion && (
-              <Card className="glass-card" title={`第 ${selectedQuestion.question_no || "?"} 题详情`} bordered={false}>
+              <Card
+                className="glass-card"
+                title={`第 ${selectedQuestion.question_no || "?"} 题详情`}
+                bordered={false}
+                extra={<Button size="small" icon={<EditOutlined />} onClick={() => openQuestionDrawer(selectedQuestion)}>编辑题目</Button>}
+              >
                 <h4 className="essay-section-title">题目原文</h4>
                 <Paragraph className="essay-chunk-text" style={{ maxHeight: 200 }}>
                   {selectedQuestion.question_text}
                 </Paragraph>
+                {selectedQuestion.scoring_rubric && (
+                  <>
+                    <h4 className="essay-section-title">评分细则</h4>
+                    <Paragraph className="essay-chunk-text" style={{ maxHeight: 160 }}>
+                      {selectedQuestion.scoring_rubric}
+                    </Paragraph>
+                  </>
+                )}
+
+                <Divider style={{ margin: "12px 0" }} />
+                <div className="essay-relation-editor">
+                  <div>
+                    <h4 className="essay-section-title">关联材料</h4>
+                    <Checkbox.Group
+                      className="essay-relation-checks"
+                      value={materialSelection}
+                      onChange={(values) => setMaterialSelection(values)}
+                      options={materialSections.map((item, index) => ({
+                        value: item.id,
+                        label: item.title || `材料 ${index + 1}`,
+                      }))}
+                    />
+                  </div>
+                  <div>
+                    <h4 className="essay-section-title">关联答案</h4>
+                    <Checkbox.Group
+                      className="essay-relation-checks"
+                      value={answerSelection}
+                      onChange={(values) => setAnswerSelection(values)}
+                      options={answerSections.map((item, index) => ({
+                        value: item.id,
+                        label: item.title || `答案 ${index + 1}`,
+                      }))}
+                    />
+                  </div>
+                  <Button size="small" type="primary" onClick={handleSaveRelations} loading={loading}>
+                    保存关联
+                  </Button>
+                </div>
 
                 {relatedMaterials.length > 0 && (
                   <>
@@ -526,6 +784,9 @@ function EssayReview() {
                               <span>{item.title}</span>
                               {item.confidence ? <Tag color="blue">{Math.round(item.confidence * 100)}%</Tag> : null}
                             </Space>
+                            <Button size="small" type="text" icon={<EditOutlined />} onClick={() => openSectionDrawer(item)}>
+                              编辑分段
+                            </Button>
                           </div>
                           <div className="essay-chunk-text" style={{ maxHeight: 120 }}>{item.content}</div>
                         </List.Item>
@@ -595,6 +856,74 @@ function EssayReview() {
           />
         </Card>
       )}
+
+      <Drawer
+        title={editingQuestion ? "编辑题目" : "新增题目"}
+        open={questionDrawerOpen}
+        onClose={() => setQuestionDrawerOpen(false)}
+        width={560}
+        extra={<Button type="primary" loading={loading} onClick={handleSaveQuestion}>保存</Button>}
+      >
+        <Form form={questionForm} layout="vertical">
+          <Form.Item name="document_id" hidden><Input /></Form.Item>
+          <Row gutter={12}>
+            <Col xs={24} sm={8}>
+              <Form.Item name="question_no" label="题号"><Input placeholder="1" /></Form.Item>
+            </Col>
+            <Col xs={24} sm={16}>
+              <Form.Item name="question_type" label="题型"><Select allowClear options={questionTypeOptions} /></Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="question_text" label="题面" rules={[{ required: true, message: "请输入题面" }]}>
+            <Input.TextArea rows={8} />
+          </Form.Item>
+          <Row gutter={12}>
+            <Col xs={24} sm={12}>
+              <Form.Item name="max_score" label="满分"><InputNumber min={1} max={200} className="full-input" /></Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="word_limit" label="字数"><InputNumber min={1} max={3000} className="full-input" /></Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="custom_prompt_id" label="Prompt 模板">
+            <Select allowClear options={promptOptions} placeholder="默认按题型模板" />
+          </Form.Item>
+          <Form.Item name="scoring_rubric" label="评分细则">
+            <Input.TextArea rows={5} placeholder="可填写单题评分要点或扣分规则" />
+          </Form.Item>
+        </Form>
+      </Drawer>
+
+      <Drawer
+        title="编辑分段"
+        open={sectionDrawerOpen}
+        onClose={() => setSectionDrawerOpen(false)}
+        width={560}
+        extra={<Button type="primary" loading={loading} onClick={handleSaveSection}>保存</Button>}
+      >
+        <Form form={sectionForm} layout="vertical">
+          <Row gutter={12}>
+            <Col xs={24} sm={12}>
+              <Form.Item name="section_type" label="类型" rules={[{ required: true, message: "请选择类型" }]}>
+                <Select options={sectionTypeOptions} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="question_no" label="题号"><Input placeholder="题目分段使用" /></Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="title" label="标题"><Input /></Form.Item>
+          <Form.Item name="related_question_nos" label="关联题号">
+            <Input placeholder="例如 1,2。材料/答案分段可用" />
+          </Form.Item>
+          <Form.Item name="content" label="内容" rules={[{ required: true, message: "请输入内容" }]}>
+            <Input.TextArea rows={12} />
+          </Form.Item>
+        </Form>
+      </Drawer>
     </div>
   );
 }

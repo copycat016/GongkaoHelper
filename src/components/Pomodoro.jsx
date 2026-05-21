@@ -5,7 +5,6 @@ import {
   InputNumber,
   Cascader,
   message,
-  Select,
   Tag,
 } from "antd";
 import {
@@ -21,7 +20,6 @@ import {
   SettingOutlined,
 } from "@ant-design/icons";
 import { getTodayPomodoroStats, savePomodoroSession } from "../api/pomodoro";
-import { completePlan, getPlans } from "../api/plans";
 
 const PRESETS = [
   { key: "classic", label: "25 / 5", focusMinutes: 25, breakMinutes: 5, desc: "经典番茄钟" },
@@ -43,14 +41,14 @@ const TASK_TOPIC_OPTIONS = [
     children: ["归纳概括题", "综合分析题", "提出对策题", "应用文写作题", "文章论述题", "公文写作题", "材料阅读", "答案复盘"].map((value) => ({ value, label: value })),
   },
   {
-    value: "错题复习",
-    label: "错题复习",
-    children: ["常识错题", "言语错题", "数量错题", "判断错题", "资料错题", "申论错题"].map((value) => ({ value, label: value })),
+    value: "复盘整理",
+    label: "复盘整理",
+    children: ["要点复盘", "答案复盘", "笔记整理", "知识归档", "弱项回看"].map((value) => ({ value, label: value })),
   },
   {
-    value: "学习计划",
-    label: "学习计划",
-    children: ["每日任务", "每周任务", "阶段任务", "随手任务", "复盘整理"].map((value) => ({ value, label: value })),
+    value: "自由学习",
+    label: "自由学习",
+    children: ["晨读", "听课", "刷题", "总结", "资料整理"].map((value) => ({ value, label: value })),
   },
   {
     value: "PDF 阅读",
@@ -72,7 +70,6 @@ const defaultPomodoroState = {
   taskType: "行测刷题",
   taskName: "资料分析专项",
   taskTopic: "资料分析",
-  boundPlanId: undefined,
   timerEndAt: null,
 };
 
@@ -125,8 +122,6 @@ function Pomodoro() {
   const [taskType, setTaskType] = useState(initialState.taskType);
   const [taskName, setTaskName] = useState(initialState.taskName);
   const [taskTopic, setTaskTopic] = useState(initialState.taskTopic);
-  const [boundPlanId, setBoundPlanId] = useState(initialState.boundPlanId);
-  const [dailyPlans, setDailyPlans] = useState([]);
   const [todayStats, setTodayStats] = useState({ focus_count: 0, focus_minutes: 0 });
   const [drawerVisible, setDrawerVisible] = useState(false);
 
@@ -146,9 +141,6 @@ function Pomodoro() {
 
   useEffect(() => {
     loadTodayStats().catch(() => {});
-    getPlans()
-      .then((items) => setDailyPlans((items || []).filter((item) => item.status !== "已完成" && item.plan_type === "每日计划")))
-      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -167,9 +159,9 @@ function Pomodoro() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       mode, running, presetKey, durations, customFocus, customBreak,
-      secondsLeft, taskType, taskName, taskTopic, boundPlanId, timerEndAt,
+      secondsLeft, taskType, taskName, taskTopic, timerEndAt,
     }));
-  }, [mode, running, presetKey, durations, customFocus, customBreak, secondsLeft, taskType, taskName, taskTopic, boundPlanId, timerEndAt]);
+  }, [mode, running, presetKey, durations, customFocus, customBreak, secondsLeft, taskType, taskName, taskTopic, timerEndAt]);
 
   useEffect(() => {
     if (secondsLeft !== 0) return;
@@ -254,9 +246,6 @@ function Pomodoro() {
       actual_minutes: actualMinutes,
       completed_at: new Date().toISOString(),
     });
-    if (isFocus && boundPlanId) {
-      await completePlan(boundPlanId);
-    }
     await loadTodayStats();
     window.dispatchEvent(new Event("pomodoro:updated"));
     message.success("已完成，并写入今日番茄钟记录");
@@ -373,26 +362,9 @@ function Pomodoro() {
             <div className="pomo-side-block pomo-task-block">
               <div className="pomo-side-title">
                 <CheckCircleOutlined />
-                <span>任务绑定</span>
+                <span>学习记录</span>
               </div>
               <div className="pomo-task-form">
-                <Select
-                  allowClear
-                  placeholder="选择每日任务"
-                  value={boundPlanId}
-                  onChange={(value) => {
-                    setBoundPlanId(value);
-                    const plan = dailyPlans.find((item) => item.id === value);
-                    if (plan) {
-                      const nextTaskType = taskTypeFromPlan(plan);
-                      setTaskType(nextTaskType);
-                      setTaskTopic(plan.question_type || defaultTopicForTask(nextTaskType));
-                      setTaskName(plan.title);
-                    }
-                  }}
-                  className="pomo-select"
-                  options={dailyPlans.map((item) => ({ value: item.id, label: item.title }))}
-                />
                 <div className="pomo-task-inline">
                   <Cascader
                     value={[taskType, taskTopic].filter(Boolean)}
@@ -419,17 +391,6 @@ function Pomodoro() {
       </section>
     </div>
   );
-}
-
-function taskTypeFromPlan(plan) {
-  if (plan.subject === "行测") return "行测刷题";
-  if (plan.subject === "申论") return "申论练习";
-  return "学习计划";
-}
-
-function defaultTopicForTask(taskType) {
-  const group = TASK_TOPIC_OPTIONS.find((item) => item.value === taskType);
-  return group?.children?.[0]?.value || "";
 }
 
 export default Pomodoro;

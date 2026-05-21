@@ -9,6 +9,9 @@ type Config struct {
 	ServerPort string
 	GinMode    string
 
+	DBDriver   string
+	SQLitePath string
+
 	DBHost     string
 	DBPort     string
 	DBUser     string
@@ -28,6 +31,10 @@ func Load() Config {
 	return Config{
 		ServerPort: getEnv("SERVER_PORT", "21080"),
 		GinMode:    getEnv("GIN_MODE", "debug"),
+
+		DBDriver:   getEnv("DB_DRIVER", "sqlite"),
+		SQLitePath: getEnv("SQLITE_PATH", "./data/gkweb.db"),
+
 		DBHost:     getEnv("DB_HOST", "localhost"),
 		DBPort:     getEnv("DB_PORT", "21432"),
 		DBUser:     getEnv("DB_USER", "gkweb"),
@@ -44,7 +51,7 @@ func Load() Config {
 	}
 }
 
-func (c Config) DatabaseDSN() string {
+func (c Config) PostgresDSN() string {
 	return fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s TimeZone=%s",
 		c.DBHost,
@@ -55,6 +62,10 @@ func (c Config) DatabaseDSN() string {
 		c.DBSSLMode,
 		c.DBTimeZone,
 	)
+}
+
+func (c Config) SQLiteDSN() string {
+	return c.SQLitePath
 }
 
 func getEnv(key string, fallback string) string {

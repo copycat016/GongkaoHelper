@@ -54,13 +54,16 @@ type OCRScene struct {
 }
 
 type OCRResult struct {
-	TaskID      uint   `json:"task_id"`
-	Provider    string `json:"provider"`
-	Engine      string `json:"engine"`
-	Status      string `json:"status"`
-	Text        string `json:"text"`
-	FromCache   bool   `json:"from_cache"`
-	RawResponse string `json:"raw_response,omitempty"`
+	TaskID      uint           `json:"task_id"`
+	Source      string         `json:"source"`
+	Provider    string         `json:"provider"`
+	Engine      string         `json:"engine"`
+	Status      string         `json:"status"`
+	Text        string         `json:"text"`
+	Quality     PDFTextQuality `json:"quality"`
+	LineCount   int            `json:"line_count"`
+	FromCache   bool           `json:"from_cache"`
+	RawResponse string         `json:"raw_response,omitempty"`
 }
 
 type OCREngineUsage struct {
@@ -195,10 +198,13 @@ func (s *BaiduOCRService) Recognize(userID uint, sceneKey string, engineKey stri
 	if cached, err := s.cachedTask(userID, engine.Key, fileHash); err == nil && cached != nil {
 		return &OCRResult{
 			TaskID:    cached.ID,
+			Source:    "ocr",
 			Provider:  cached.Provider,
 			Engine:    cached.Engine,
 			Status:    cached.Status,
 			Text:      cached.RawText,
+			Quality:   ocrTextQuality(cached.RawText),
+			LineCount: countTextLines(cached.RawText),
 			FromCache: true,
 		}, nil
 	}
@@ -240,12 +246,22 @@ func (s *BaiduOCRService) Recognize(userID uint, sceneKey string, engineKey stri
 
 	return &OCRResult{
 		TaskID:      task.ID,
+		Source:      "ocr",
 		Provider:    task.Provider,
 		Engine:      task.Engine,
 		Status:      task.Status,
 		Text:        task.RawText,
+		Quality:     ocrTextQuality(task.RawText),
+		LineCount:   countTextLines(task.RawText),
 		RawResponse: task.RawResponse,
 	}, nil
+}
+
+func ocrTextQuality(text string) PDFTextQuality {
+	if strings.TrimSpace(text) == "" {
+		return PDFTextQuality{OK: false, Reason: "ocr returned no text"}
+	}
+	return PDFTextQuality{OK: true, Reason: "ocr text captured"}
 }
 
 func (s *BaiduOCRService) MonthUsage(userID uint) (map[string]any, error) {

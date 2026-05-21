@@ -43,7 +43,7 @@ type EssayReviewResult struct {
 type BoundaryDebugResult struct {
 	DocumentID    uint                 `json:"document_id"`
 	ModelID       uint                 `json:"model_id"`
-	BlockCount    int                  `json:"block_count"`         // 新流程中表示行数
+	BlockCount    int                  `json:"block_count"` // 新流程中表示行数
 	Prompt        string               `json:"prompt"`
 	RawResponse   string               `json:"raw_response"`
 	ExtractedJSON string               `json:"extracted_json"`
@@ -58,6 +58,27 @@ type ReviewContext struct {
 	QuestionText string   `json:"question_text"`
 	Materials    []string `json:"materials"`
 	Answers      []string `json:"answers"`
+}
+
+type EssayQuestionPayload struct {
+	DocumentID     uint   `json:"document_id"`
+	QuestionNo     string `json:"question_no"`
+	Title          string `json:"title"`
+	QuestionType   string `json:"question_type"`
+	QuestionText   string `json:"question_text"`
+	MaxScore       int    `json:"max_score"`
+	WordLimit      int    `json:"word_limit"`
+	ScoringRubric  string `json:"scoring_rubric"`
+	CustomPromptID *uint  `json:"custom_prompt_id"`
+	Status         string `json:"status"`
+}
+
+type EssaySectionPayload struct {
+	SectionType        string `json:"section_type"`
+	Title              string `json:"title"`
+	Content            string `json:"content"`
+	QuestionNo         string `json:"question_no"`
+	RelatedQuestionNos string `json:"related_question_nos"`
 }
 
 func NewEssayService(db *gorm.DB) *EssayService {
@@ -693,10 +714,233 @@ func parseCommaSeparated(s string) []string {
 	return result
 }
 
+func normalizeQuestionDefaults(question *models.EssayQuestion) {
+	if strings.TrimSpace(question.QuestionText) == "" {
+		question.QuestionText = "待补充题面"
+	}
+	if strings.TrimSpace(question.Title) == "" {
+		question.Title = questionTitle("申论题", question.QuestionText, question.QuestionNo, 1)
+	}
+	if question.MaxScore <= 0 {
+		question.MaxScore = 100
+	}
+	if question.WordLimit <= 0 {
+		question.WordLimit = 500
+	}
+	if strings.TrimSpace(question.Status) == "" {
+		question.Status = "assembled"
+	}
+}
+
+func uniqueUintIDs(ids []uint) []uint {
+	seen := make(map[uint]bool)
+	result := make([]uint, 0, len(ids))
+	for _, id := range ids {
+		if id == 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		result = append(result, id)
+	}
+	return result
+}
+
+func (s *EssayService) validateSectionForRelation(userID uint, documentID uint, sectionID uint, allowedTypes []string) error {
+	var section models.EssaySection
+	if err := s.db.Where("user_id = ? AND document_id = ? AND id = ?", userID, documentID, sectionID).First(&section).Error; err != nil {
+		return err
+	}
+	for _, allowed := range allowedTypes {
+		if section.SectionType == allowed {
+			return nil
+		}
+	}
+	return fmt.Errorf("section %d type %s cannot be used for this relation", sectionID, section.SectionType)
+}
+
+func (s *EssayService) attachQuestionRelationIDs(userID uint, questions []models.EssayQuestion) []models.EssayQuestion {
+	if len(questions) == 0 {
+		return questions
+	}
+	ids := make([]uint, 0, len(questions))
+	indexByID := make(map[uint]int, len(questions))
+	for index, question := range questions {
+		ids = append(ids, question.ID)
+		indexByID[question.ID] = index
+	}
+	var relations []models.EssaySectionRelation
+	if err := s.db.Where("user_id = ? AND question_id IN ?", userID, ids).Find(&relations).Error; err != nil {
+		return questions
+	}
+	for _, rel := range relations {
+		index, ok := indexByID[rel.QuestionID]
+		if !ok {
+			continue
+		}
+		switch rel.RelationType {
+		case "question_material":
+			questions[index].MaterialSectionIDs = append(questions[index].MaterialSectionIDs, rel.SectionID)
+		case "question_answer":
+			questions[index].AnswerSectionIDs = append(questions[index].AnswerSectionIDs, rel.SectionID)
+		}
+	}
+	return questions
+}
+
 func (s *EssayService) ListQuestions(userID uint, documentID uint) ([]models.EssayQuestion, error) {
 	var questions []models.EssayQuestion
-	err := s.db.Where("user_id = ? AND document_id = ?", userID, documentID).Order("id asc").Find(&questions).Error
-	return questions, err
+	if err := s.db.Where("user_id = ? AND document_id = ?", userID, documentID).Order("id asc").Find(&questions).Error; err != nil {
+		return nil, err
+	}
+	return s.attachQuestionRelationIDs(userID, questions), nil
+}
+
+func (s *EssayService) CreateQuestion(userID uint, payload EssayQuestionPayload) (*models.EssayQuestion, error) {
+	if payload.DocumentID == 0 {
+		return nil, errors.New("document_id is required")
+	}
+	if _, err := s.getDocument(userID, payload.DocumentID); err != nil {
+		return nil, err
+	}
+	question := models.EssayQuestion{
+		BaseModel:      models.BaseModel{UserID: userID},
+		DocumentID:     payload.DocumentID,
+		QuestionNo:     strings.TrimSpace(payload.QuestionNo),
+		Title:          strings.TrimSpace(payload.Title),
+		QuestionType:   strings.TrimSpace(payload.QuestionType),
+		QuestionText:   strings.TrimSpace(payload.QuestionText),
+		MaxScore:       payload.MaxScore,
+		WordLimit:      payload.WordLimit,
+		Status:         strings.TrimSpace(payload.Status),
+		ManuallyEdited: true,
+		CustomPromptID: payload.CustomPromptID,
+		ScoringRubric:  strings.TrimSpace(payload.ScoringRubric),
+	}
+	normalizeQuestionDefaults(&question)
+	if err := s.db.Create(&question).Error; err != nil {
+		return nil, err
+	}
+	return &question, nil
+}
+
+func (s *EssayService) UpdateQuestion(userID uint, questionID uint, payload EssayQuestionPayload) (*models.EssayQuestion, error) {
+	var question models.EssayQuestion
+	if err := s.db.Where("user_id = ? AND id = ?", userID, questionID).First(&question).Error; err != nil {
+		return nil, err
+	}
+	question.QuestionNo = strings.TrimSpace(payload.QuestionNo)
+	question.Title = strings.TrimSpace(payload.Title)
+	question.QuestionType = strings.TrimSpace(payload.QuestionType)
+	question.QuestionText = strings.TrimSpace(payload.QuestionText)
+	question.MaxScore = payload.MaxScore
+	question.WordLimit = payload.WordLimit
+	question.CustomPromptID = payload.CustomPromptID
+	question.ScoringRubric = strings.TrimSpace(payload.ScoringRubric)
+	if strings.TrimSpace(payload.Status) != "" {
+		question.Status = strings.TrimSpace(payload.Status)
+	}
+	question.ManuallyEdited = true
+	normalizeQuestionDefaults(&question)
+	if err := s.db.Save(&question).Error; err != nil {
+		return nil, err
+	}
+	return &question, nil
+}
+
+func (s *EssayService) DeleteQuestion(userID uint, questionID uint) error {
+	var question models.EssayQuestion
+	if err := s.db.Where("user_id = ? AND id = ?", userID, questionID).First(&question).Error; err != nil {
+		return err
+	}
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ? AND question_id = ?", userID, questionID).Delete(&models.EssayReview{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ? AND question_id = ?", userID, questionID).Delete(&models.EssaySectionRelation{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ? AND question_id = ?", userID, questionID).Delete(&models.EssayQuestionChunk{}).Error; err != nil {
+			return err
+		}
+		result := tx.Where("user_id = ? AND id = ?", userID, questionID).Delete(&models.EssayQuestion{})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		_ = question
+		return nil
+	})
+}
+
+func (s *EssayService) UpdateSection(userID uint, sectionID uint, payload EssaySectionPayload) (*models.EssaySection, error) {
+	var section models.EssaySection
+	if err := s.db.Where("user_id = ? AND id = ?", userID, sectionID).First(&section).Error; err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(payload.SectionType) != "" {
+		section.SectionType = strings.TrimSpace(payload.SectionType)
+	}
+	section.Title = strings.TrimSpace(payload.Title)
+	section.Content = strings.TrimSpace(payload.Content)
+	section.QuestionNo = strings.TrimSpace(payload.QuestionNo)
+	section.RelatedQuestionNos = strings.TrimSpace(payload.RelatedQuestionNos)
+	if section.Content == "" {
+		return nil, errors.New("section content is required")
+	}
+	if err := s.db.Save(&section).Error; err != nil {
+		return nil, err
+	}
+	return &section, nil
+}
+
+func (s *EssayService) ReplaceQuestionRelations(userID uint, questionID uint, materialIDs []uint, answerIDs []uint) (*models.EssayQuestion, error) {
+	var question models.EssayQuestion
+	if err := s.db.Where("user_id = ? AND id = ?", userID, questionID).First(&question).Error; err != nil {
+		return nil, err
+	}
+	relations := make([]models.EssaySectionRelation, 0, len(materialIDs)+len(answerIDs))
+	for _, sectionID := range uniqueUintIDs(materialIDs) {
+		if err := s.validateSectionForRelation(userID, question.DocumentID, sectionID, []string{string(parser.SectionMaterial)}); err != nil {
+			return nil, err
+		}
+		relations = append(relations, models.EssaySectionRelation{
+			BaseModel:    models.BaseModel{UserID: userID},
+			DocumentID:   question.DocumentID,
+			QuestionID:   question.ID,
+			SectionID:    sectionID,
+			RelationType: "question_material",
+		})
+	}
+	for _, sectionID := range uniqueUintIDs(answerIDs) {
+		if err := s.validateSectionForRelation(userID, question.DocumentID, sectionID, []string{string(parser.SectionAnswer), string(parser.SectionAnalysis)}); err != nil {
+			return nil, err
+		}
+		relations = append(relations, models.EssaySectionRelation{
+			BaseModel:    models.BaseModel{UserID: userID},
+			DocumentID:   question.DocumentID,
+			QuestionID:   question.ID,
+			SectionID:    sectionID,
+			RelationType: "question_answer",
+		})
+	}
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ? AND question_id = ?", userID, questionID).Delete(&models.EssaySectionRelation{}).Error; err != nil {
+			return err
+		}
+		if len(relations) > 0 {
+			if err := tx.Create(&relations).Error; err != nil {
+				return err
+			}
+		}
+		question.ManuallyEdited = true
+		return tx.Save(&question).Error
+	}); err != nil {
+		return nil, err
+	}
+	questions := s.attachQuestionRelationIDs(userID, []models.EssayQuestion{question})
+	return &questions[0], nil
 }
 
 // ReviewAnswer 根据题号只取对应 question + related materials + answer 进行批改。
@@ -801,17 +1045,17 @@ func (s *EssayService) ReviewAnswer(userID uint, questionID uint, modelID uint, 
 
 // LLMReviewResult 是 LLM 批改的结构化输出。
 type LLMReviewResult struct {
-	Score         float64              `json:"score"`
-	Summary       string               `json:"summary"`
-	Suggestions   []string             `json:"suggestions"`
-	Dimensions    []ReviewDimension    `json:"dimensions"`
-	ScoringDetail string               `json:"scoring_detail"`
-	Highlights    []ReviewHighlight    `json:"highlights"`
+	Score         float64           `json:"score"`
+	Summary       string            `json:"summary"`
+	Suggestions   []string          `json:"suggestions"`
+	Dimensions    []ReviewDimension `json:"dimensions"`
+	ScoringDetail string            `json:"scoring_detail"`
+	Highlights    []ReviewHighlight `json:"highlights"`
 }
 
 // ReviewDimension 是一个评分维度。
 type ReviewDimension struct {
-	Name     string  `json:"name"`      // 如 "内容要点", "逻辑结构", "语言表达"
+	Name     string  `json:"name"` // 如 "内容要点", "逻辑结构", "语言表达"
 	Score    float64 `json:"score"`
 	MaxScore float64 `json:"max_score"`
 	Comment  string  `json:"comment"`
@@ -881,6 +1125,11 @@ func buildReviewUserPrompt(question models.EssayQuestion, materialTexts []string
 	sb.WriteString(fmt.Sprintf("- 题型: %s\n", question.QuestionType))
 	sb.WriteString(fmt.Sprintf("- 满分: %d 分\n", question.MaxScore))
 	sb.WriteString(fmt.Sprintf("- 字数限制: %d 字\n\n", question.WordLimit))
+	if strings.TrimSpace(question.ScoringRubric) != "" {
+		sb.WriteString("### 单题评分细则\n")
+		sb.WriteString(question.ScoringRubric)
+		sb.WriteString("\n\n")
+	}
 	sb.WriteString("### 题目原文\n")
 	sb.WriteString(question.QuestionText)
 	sb.WriteString("\n\n")

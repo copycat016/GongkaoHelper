@@ -3,18 +3,14 @@ import {
   ClockCircleOutlined,
   CloudUploadOutlined,
   DashboardOutlined,
-  DatabaseOutlined,
   EditOutlined,
-  HistoryOutlined,
   CustomerServiceOutlined,
   RobotOutlined,
 } from "@ant-design/icons";
 
 export const menuItems = [
   { key: "/", icon: <DashboardOutlined />, label: "首页总览" },
-  { key: "/ocr", icon: <CloudUploadOutlined />, label: "OCR 识题" },
-  { key: "/questions", icon: <DatabaseOutlined />, label: "题库管理" },
-  { key: "/mistakes", icon: <HistoryOutlined />, label: "错题库" },
+  { key: "/intake", icon: <CloudUploadOutlined />, label: "录入器" },
   { key: "/essay", icon: <EditOutlined />, label: "申论批改" },
   { key: "/pomodoro", icon: <ClockCircleOutlined />, label: "番茄钟" },
   { key: "/music", icon: <CustomerServiceOutlined />, label: "音乐播放器" },

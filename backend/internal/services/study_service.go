@@ -13,7 +13,6 @@ import (
 type StudyLogStats struct {
 	TotalMinutes  int    `json:"total_minutes"`
 	PomodoroCount int64  `json:"pomodoro_count"`
-	Interruptions int    `json:"interruptions"`
 	MainSubject   string `json:"main_subject"`
 }
 
@@ -74,6 +73,13 @@ func (s *StudyService) LogStats(userID uint, date string, scope string) (*StudyL
 }
 
 func (s *StudyService) CreateLog(log *models.StudyLog) error {
+	if log.DurationMin <= 0 && log.StartTime != nil && log.EndTime != nil && log.EndTime.After(*log.StartTime) {
+		log.DurationMin = int(log.EndTime.Sub(*log.StartTime).Minutes())
+	}
+	if log.EndTime == nil && log.StartTime != nil && log.DurationMin > 0 {
+		end := log.StartTime.Add(time.Duration(log.DurationMin) * time.Minute)
+		log.EndTime = &end
+	}
 	return s.db.Create(log).Error
 }
 

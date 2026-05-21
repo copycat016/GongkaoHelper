@@ -29,14 +29,19 @@ type EssayChunk struct {
 
 type EssayQuestion struct {
 	BaseModel
-	DocumentID   uint   `json:"document_id" gorm:"not null;index"`
-	Title        string `json:"title" gorm:"size:240;not null"`
-	QuestionNo   string `json:"question_no" gorm:"size:10"`              // 题号，如 "1","2"
-	QuestionType string `json:"question_type" gorm:"size:80"`
-	QuestionText string `json:"question_text" gorm:"type:text;not null"`
-	MaxScore     int    `json:"max_score" gorm:"not null;default:100"`
-	WordLimit    int    `json:"word_limit" gorm:"not null;default:500"`
-	Status       string `json:"status" gorm:"size:40;not null;default:assembled;index"`
+	DocumentID         uint   `json:"document_id" gorm:"not null;index"`
+	Title              string `json:"title" gorm:"size:240;not null"`
+	QuestionNo         string `json:"question_no" gorm:"size:10"` // 题号，如 "1","2"
+	QuestionType       string `json:"question_type" gorm:"size:80"`
+	QuestionText       string `json:"question_text" gorm:"type:text;not null"`
+	MaxScore           int    `json:"max_score" gorm:"not null;default:100"`
+	WordLimit          int    `json:"word_limit" gorm:"not null;default:500"`
+	Status             string `json:"status" gorm:"size:40;not null;default:assembled;index"`
+	ManuallyEdited     bool   `json:"manually_edited" gorm:"not null;default:false;index"`
+	CustomPromptID     *uint  `json:"custom_prompt_id" gorm:"index"`
+	ScoringRubric      string `json:"scoring_rubric" gorm:"type:text"`
+	MaterialSectionIDs []uint `json:"material_section_ids,omitempty" gorm:"-"`
+	AnswerSectionIDs   []uint `json:"answer_section_ids,omitempty" gorm:"-"`
 }
 
 type EssayQuestionChunk struct {
@@ -57,8 +62,8 @@ type EssaySection struct {
 	SectionType        string  `json:"section_type" gorm:"size:40;not null;default:unknown;index"`
 	Title              string  `json:"title" gorm:"size:240"`
 	Content            string  `json:"content" gorm:"type:text;not null"`
-	BlockIDs           string  `json:"block_ids" gorm:"size:500"`  // 逗号分隔的 block id 列表，用于追溯
-	QuestionNo         string  `json:"question_no" gorm:"size:10"` // 题号（question 区域使用）
+	BlockIDs           string  `json:"block_ids" gorm:"size:500"`            // 逗号分隔的 block id 列表，用于追溯
+	QuestionNo         string  `json:"question_no" gorm:"size:10"`           // 题号（question 区域使用）
 	RelatedQuestionNos string  `json:"related_question_nos" gorm:"size:100"` // 关联题号（逗号分隔，answer/material 使用）
 	Confidence         float64 `json:"confidence" gorm:"not null;default:0"`
 	Reason             string  `json:"reason" gorm:"size:500"`
@@ -70,7 +75,7 @@ type EssaySectionRelation struct {
 	BaseModel
 	DocumentID   uint   `json:"document_id" gorm:"not null;index"`
 	QuestionID   uint   `json:"question_id" gorm:"not null;index"`
-	SectionID    uint   `json:"section_id" gorm:"not null;index"` // 关联的 material/answer section
+	SectionID    uint   `json:"section_id" gorm:"not null;index"`            // 关联的 material/answer section
 	RelationType string `json:"relation_type" gorm:"size:40;not null;index"` // question_material / question_answer
 }
 

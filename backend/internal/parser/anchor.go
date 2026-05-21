@@ -9,19 +9,19 @@ import (
 // Anchor 表示一个文档结构锚点规则。
 type Anchor struct {
 	Name      string      `json:"name"`
-	Pattern   string      `json:"pattern"`  // 正则表达式字符串
+	Pattern   string      `json:"pattern"` // 正则表达式字符串
 	Type      SectionType `json:"type"`
-	Priority  int         `json:"priority"` // 优先级，数字越大越优先
+	Priority  int         `json:"priority"`   // 优先级，数字越大越优先
 	IsDivider bool        `json:"is_divider"` // 是否为分隔锚点：true 表示即使类型相同也创建新 section
 	compiled  *regexp.Regexp
 }
 
 // AnchorMatch 表示一次锚点匹配结果。
 type AnchorMatch struct {
-	Anchor     Anchor   `json:"anchor"`
-	BlockID    string   `json:"block_id"`
-	LineText   string   `json:"line_text"`
-	StartIndex int      `json:"start_index"` // 匹配在 block.Text 中的起始位置
+	Anchor     Anchor `json:"anchor"`
+	BlockID    string `json:"block_id"`
+	LineText   string `json:"line_text"`
+	StartIndex int    `json:"start_index"` // 匹配在 block.Text 中的起始位置
 }
 
 // DefaultAnchors 返回申论文档的默认锚点规则集。
@@ -185,11 +185,11 @@ func splitSingleBlockByDividers(block TextBlock, anchors []Anchor) []TextBlock {
 			return
 		}
 		subBlocks = append(subBlocks, TextBlock{
-			ID:      fmt.Sprintf("%s_s%d", block.ID, len(subBlocks)),
-			PageNo:  current[0].PageNo,
-			Lines:   append([]TextLine(nil), current...),
-			Text:    joinLines(current),
-			Meta:    block.Meta,
+			ID:     fmt.Sprintf("%s_s%d", block.ID, len(subBlocks)),
+			PageNo: current[0].PageNo,
+			Lines:  append([]TextLine(nil), current...),
+			Text:   joinLines(current),
+			Meta:   block.Meta,
 		})
 		current = nil
 	}

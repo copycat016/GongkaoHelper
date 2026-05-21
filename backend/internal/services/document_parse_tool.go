@@ -16,11 +16,12 @@ type DocumentParseInput struct {
 }
 
 type DocumentParseResult struct {
-	Source  string         `json:"source"`
-	Text    string         `json:"text"`
-	Pages   []PDFTextPage  `json:"pages,omitempty"`
-	Quality PDFTextQuality `json:"quality"`
-	Lines   int            `json:"line_count"`
+	Source       string         `json:"source"`
+	SourceEngine string         `json:"source_engine,omitempty"`
+	Text         string         `json:"text"`
+	Pages        []PDFTextPage  `json:"pages,omitempty"`
+	Quality      PDFTextQuality `json:"quality"`
+	Lines        int            `json:"line_count"`
 }
 
 // ParseDocumentSource is the unified entry for text-like document input.
@@ -32,17 +33,21 @@ func ParseDocumentSource(input DocumentParseInput) (*DocumentParseResult, error)
 	}
 
 	if path := strings.TrimSpace(input.PDFPath); path != "" {
-		pages, err := ExtractPDFTextPages(path)
+		pages, quality, sourceEngine, err := ExtractPDFTextPagesForTest(path)
 		if err != nil {
 			return nil, err
 		}
+		if !quality.OK {
+			return nil, fmt.Errorf("pdf text layer is not reliably decodable: %s; please use OCR", quality.Reason)
+		}
 		text := pagesToEssayText(pages)
 		return &DocumentParseResult{
-			Source:  "pdf_text",
-			Text:    text,
-			Pages:   pages,
-			Quality: PDFTextQuality{OK: true, Reason: "pdf text layer looks usable"},
-			Lines:   countTextLines(text),
+			Source:       "pdf_text",
+			SourceEngine: sourceEngine,
+			Text:         text,
+			Pages:        pages,
+			Quality:      quality,
+			Lines:        countTextLines(text),
 		}, nil
 	}
 

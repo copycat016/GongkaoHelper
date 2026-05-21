@@ -7,12 +7,12 @@ import (
 
 // StructuredResult 是 parser 的最终输出，可直接用于后续批改。
 type StructuredResult struct {
-	DocumentID string      `json:"document_id"`
-	Sections   []Section   `json:"sections"`
-	Questions  []Question  `json:"questions"`
-	Materials  []Material  `json:"materials"`
-	Answers    []Answer    `json:"answers"`
-	Relations  []Relation  `json:"relations"`
+	DocumentID string     `json:"document_id"`
+	Sections   []Section  `json:"sections"`
+	Questions  []Question `json:"questions"`
+	Materials  []Material `json:"materials"`
+	Answers    []Answer   `json:"answers"`
+	Relations  []Relation `json:"relations"`
 }
 
 // Question 表示一道题目及其关联的材料和答案。
@@ -24,8 +24,8 @@ type Question struct {
 	QuestionType string   `json:"question_type"`
 	MaxScore     int      `json:"max_score"`
 	WordLimit    int      `json:"word_limit"`
-	QuestionNo   string   `json:"question_no"`              // 题号，如 "1","2"
-	MaterialNos  []string `json:"material_nos,omitempty"`    // 引用的材料编号
+	QuestionNo   string   `json:"question_no"`            // 题号，如 "1","2"
+	MaterialNos  []string `json:"material_nos,omitempty"` // 引用的材料编号
 	MaterialIDs  []string `json:"material_ids"`
 	AnswerIDs    []string `json:"answer_ids"`
 }

@@ -22,18 +22,18 @@ type LLMBoundaryResult struct {
 // LLMRefiner 使用 LLM 精修状态机切分结果。
 // 只在置信度低于阈值的边界处调用 LLM，不重新生成全文。
 type LLMRefiner struct {
-	client     *http.Client
-	provider   LLMProviderConfig
-	threshold  float64 // 低于此值的边界需要精修
-	contextBlocks int  // 边界两侧各取多少 block
+	client        *http.Client
+	provider      LLMProviderConfig
+	threshold     float64 // 低于此值的边界需要精修
+	contextBlocks int     // 边界两侧各取多少 block
 }
 
 // LLMProviderConfig 用于调用 LLM 的最小配置。
 type LLMProviderConfig struct {
-	BaseURL   string `json:"base_url"`
-	APIKey    string `json:"api_key"`
-	Model     string `json:"model"`
-	TimeoutSec int   `json:"timeout_sec"`
+	BaseURL    string `json:"base_url"`
+	APIKey     string `json:"api_key"`
+	Model      string `json:"model"`
+	TimeoutSec int    `json:"timeout_sec"`
 }
 
 // NewLLMRefiner 创建精修器。
@@ -130,7 +130,7 @@ func (r *LLMRefiner) callLLMBoundary(blocks []TextBlock, target Section) (*LLMBo
 			{"role": "user", "content": prompt},
 		},
 		"temperature": 0.1,
-		"max_tokens": 512,
+		"max_tokens":  512,
 	}
 
 	body, err := json.Marshal(payload)

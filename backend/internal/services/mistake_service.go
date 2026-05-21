@@ -47,7 +47,7 @@ func (s *MistakeService) List(userID uint, filters MistakeFilters) ([]models.Mis
 		query = query.Where("mastery = ?", filters.Mastery)
 	}
 	if filters.Tag != "" {
-		query = query.Where("tags::text ILIKE ?", "%"+filters.Tag+"%")
+		query = query.Where("LOWER(tags) LIKE LOWER(?)", "%"+filters.Tag+"%")
 	}
 
 	err := query.Order("updated_at desc").Find(&mistakes).Error

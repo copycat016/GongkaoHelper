@@ -25,7 +25,7 @@ type PDFTextQuality struct {
 }
 
 func ExtractPDFTextPages(path string) ([]PDFTextPage, error) {
-	pages, quality, err := ExtractPDFTextPagesForTest(path)
+	pages, quality, _, err := ExtractPDFTextPagesForTest(path)
 	if err != nil {
 		return nil, err
 	}
@@ -35,11 +35,12 @@ func ExtractPDFTextPages(path string) ([]PDFTextPage, error) {
 	return pages, nil
 }
 
-func ExtractPDFTextPagesForTest(path string) ([]PDFTextPage, PDFTextQuality, error) {
+func ExtractPDFTextPagesForTest(path string) ([]PDFTextPage, PDFTextQuality, string, error) {
 	if pages, quality, err := extractPDFTextPagesWithPoppler(path); err == nil {
-		return pages, quality, nil
+		return pages, quality, "poppler", nil
 	}
-	return extractPDFTextPagesWithGo(path)
+	pages, quality, err := extractPDFTextPagesWithGo(path)
+	return pages, quality, "go_pdf", err
 }
 
 func extractPDFTextPagesWithGo(path string) ([]PDFTextPage, PDFTextQuality, error) {

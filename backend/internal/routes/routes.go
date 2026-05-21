@@ -17,10 +17,9 @@ func Register(router *gin.Engine, db *gorm.DB) {
 	dbHandler := handlers.NewDBHandler(db)
 	llmHandler := handlers.NewLLMHandler(services.NewLLMService(db))
 	promptHandler := handlers.NewPromptHandler(services.NewPromptService(db))
-	mistakeHandler := handlers.NewMistakeHandler(services.NewMistakeService(db))
-	questionBankHandler := handlers.NewQuestionBankHandler(services.NewQuestionBankService(db))
 	pomodoroHandler := handlers.NewPomodoroHandler(services.NewPomodoroService(db))
 	studyHandler := handlers.NewStudyHandler(services.NewStudyService(db))
+	taskHandler := handlers.NewDailyTaskHandler(services.NewDailyTaskService(db))
 	musicHandler := handlers.NewMusicHandler(services.NewMusicService(db))
 	ocrHandler := handlers.NewOCRHandler(services.NewBaiduOCRService(db, cfg))
 	backupHandler := handlers.NewBackupHandler(services.NewBackupService(db))
@@ -63,24 +62,6 @@ func Register(router *gin.Engine, db *gorm.DB) {
 			prompts.DELETE("/:id", promptHandler.Delete)
 		}
 
-		mistakes := api.Group("/mistakes")
-		{
-			mistakes.GET("", mistakeHandler.List)
-			mistakes.POST("", mistakeHandler.Create)
-			mistakes.GET("/:id", mistakeHandler.Get)
-			mistakes.PUT("/:id", mistakeHandler.Update)
-			mistakes.DELETE("/:id", mistakeHandler.Delete)
-			mistakes.POST("/:id/review", mistakeHandler.Review)
-		}
-
-		questions := api.Group("/questions")
-		{
-			questions.GET("", questionBankHandler.List)
-			questions.GET("/:id", questionBankHandler.Get)
-			questions.PUT("/:id", questionBankHandler.Update)
-			questions.DELETE("/:id", questionBankHandler.Delete)
-		}
-
 		pomodoro := api.Group("/pomodoro")
 		{
 			pomodoro.POST("/sessions", pomodoroHandler.CreateSession)
@@ -94,18 +75,31 @@ func Register(router *gin.Engine, db *gorm.DB) {
 			logs.POST("", studyHandler.CreateLog)
 		}
 
-		plans := api.Group("/plans")
+		tasks := api.Group("/tasks")
 		{
-			plans.GET("", studyHandler.ListPlans)
-			plans.POST("", studyHandler.CreatePlan)
-			plans.PUT("/:id", studyHandler.UpdatePlan)
-			plans.DELETE("/:id", studyHandler.DeletePlan)
-			plans.POST("/:id/complete", studyHandler.CompletePlan)
+			tasks.GET("", taskHandler.List)
+			tasks.GET("/summary", taskHandler.Summary)
+			tasks.POST("", taskHandler.Create)
+			tasks.PUT("/:id", taskHandler.Update)
+			tasks.POST("/:id/toggle", taskHandler.Toggle)
+			tasks.DELETE("/:id", taskHandler.Delete)
 		}
 
-		calendar := api.Group("/calendar")
+		planning := api.Group("/planning")
 		{
-			calendar.GET("/events", studyHandler.CalendarEvents)
+			planning.GET("/daily-tasks", taskHandler.ListDailyTasks)
+			planning.POST("/daily-tasks", taskHandler.CreateDailyTask)
+			planning.PUT("/daily-tasks/:id", taskHandler.Update)
+			planning.POST("/daily-tasks/:id/toggle", taskHandler.Toggle)
+			planning.DELETE("/daily-tasks/:id", taskHandler.Delete)
+			planning.GET("/weekly-tasks", taskHandler.ListWeeklyTasks)
+			planning.POST("/weekly-tasks", taskHandler.CreateWeeklyTask)
+			planning.PUT("/weekly-tasks/:id", taskHandler.UpdateWeeklyTask)
+			planning.DELETE("/weekly-tasks/:id", taskHandler.DeleteWeeklyTask)
+			planning.GET("/stage-goals", taskHandler.ListStageGoals)
+			planning.POST("/stage-goals", taskHandler.CreateStageGoal)
+			planning.PUT("/stage-goals/:id", taskHandler.UpdateStageGoal)
+			planning.DELETE("/stage-goals/:id", taskHandler.DeleteStageGoal)
 		}
 
 		music := api.Group("/music")
@@ -154,7 +148,12 @@ func Register(router *gin.Engine, db *gorm.DB) {
 			essay.POST("/documents/:id/classify", essayHandler.ClassifyChunks)
 			essay.POST("/documents/:id/assemble", essayHandler.AssembleQuestions)
 			essay.GET("/documents/:id/questions", essayHandler.ListQuestions)
+			essay.POST("/questions", essayHandler.CreateQuestion)
+			essay.PUT("/questions/:id", essayHandler.UpdateQuestion)
+			essay.DELETE("/questions/:id", essayHandler.DeleteQuestion)
+			essay.POST("/questions/:id/relations", essayHandler.ReplaceQuestionRelations)
 			essay.POST("/questions/:id/review", essayHandler.ReviewAnswer)
+			essay.PUT("/sections/:id", essayHandler.UpdateSection)
 		}
 
 		pdf := api.Group("/pdf")
