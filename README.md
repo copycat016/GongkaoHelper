@@ -1,6 +1,6 @@
-# GongkaoHelper（Gkweb）
+# GongkaoHelper
 
-个人公考学习辅助系统，支持 OCR 识题、错题库、申论 PDF 结构化与 AI 批改、番茄钟、学习管理、音乐播放器等功能。
+公考学习辅助系统，支持 OCR 识题、错题库、申论 PDF 结构化与 AI 批改、番茄钟、学习管理、音乐播放器等功能。
 
 ## 技术栈
 
@@ -84,5 +84,3 @@ curl http://localhost:21080/api/db/ping
 cd backend && gofmt -w cmd internal && go test ./...
 cd .. && npm run build
 ```
-
-确认：无旧端口 `8080`/`5173`、无密钥泄漏、无重复页面标题。
