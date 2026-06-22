@@ -979,13 +979,29 @@ func (s *EssayService) ReviewAnswer(userID uint, questionID uint, modelID uint, 
 		Materials:    materialTexts,
 		Answers:      answerTexts,
 	}
+	systemPrompt, userPrompt, promptTemplateID, promptName, promptVersion := s.buildReviewPrompts(userID, question, materialTexts, answerTexts, userAnswer)
+	reviewModelName, reviewProviderName := s.reviewModelSnapshot(userID, modelID)
+	questionSnapshot := mustJSONText(map[string]any{
+		"id":               question.ID,
+		"document_id":      question.DocumentID,
+		"title":            question.Title,
+		"question_no":      question.QuestionNo,
+		"question_type":    question.QuestionType,
+		"question_text":    question.QuestionText,
+		"max_score":        question.MaxScore,
+		"word_limit":       question.WordLimit,
+		"scoring_rubric":   question.ScoringRubric,
+		"custom_prompt_id": question.CustomPromptID,
+	})
+	materialSnapshot := mustJSONText(materialTexts)
+	answerSnapshot := mustJSONText(answerTexts)
 
 	var score float64
 	var resultPayload map[string]any
 
 	if modelID > 0 {
 		// ── 调用 LLM 真实批改 ──
-		llmResult, err := s.callLLMReview(userID, modelID, question, materialTexts, answerTexts, userAnswer)
+		llmResult, err := s.callLLMReview(userID, modelID, question, systemPrompt, userPrompt)
 		if err != nil {
 			// LLM 调用失败时，降级为启发式评分并记录错误
 			score = mockEssayScore(userAnswer, question.WordLimit)
@@ -1018,13 +1034,23 @@ func (s *EssayService) ReviewAnswer(userID uint, questionID uint, modelID uint, 
 	resultBytes, _ := json.Marshal(resultPayload)
 
 	review := models.EssayReview{
-		BaseModel:     models.BaseModel{UserID: userID},
-		QuestionID:    questionID,
-		ReviewModelID: modelID,
-		UserAnswer:    userAnswer,
-		Score:         score,
-		MaxScore:      question.MaxScore,
-		ResultJSON:    string(resultBytes),
+		BaseModel:             models.BaseModel{UserID: userID},
+		QuestionID:            questionID,
+		ReviewModelID:         modelID,
+		ReviewModelName:       reviewModelName,
+		ReviewProviderName:    reviewProviderName,
+		PromptTemplateID:      promptTemplateID,
+		PromptTemplateName:    promptName,
+		PromptTemplateVersion: promptVersion,
+		UserAnswer:            userAnswer,
+		QuestionSnapshot:      questionSnapshot,
+		MaterialSnapshot:      materialSnapshot,
+		AnswerSnapshot:        answerSnapshot,
+		SystemPromptSnapshot:  systemPrompt,
+		UserPromptSnapshot:    userPrompt,
+		Score:                 score,
+		MaxScore:              question.MaxScore,
+		ResultJSON:            string(resultBytes),
 	}
 	if err := s.db.Create(&review).Error; err != nil {
 		return nil, err
@@ -1041,6 +1067,75 @@ func (s *EssayService) ReviewAnswer(userID uint, questionID uint, modelID uint, 
 		Suggestions: suggestions,
 		Context:     ctx,
 	}, nil
+}
+
+func (s *EssayService) buildReviewPrompts(userID uint, question models.EssayQuestion, materialTexts []string, answerTexts []string, userAnswer string) (string, string, *uint, string, string) {
+	systemPrompt := buildReviewSystemPrompt()
+	userPrompt := buildReviewUserPrompt(question, materialTexts, answerTexts, userAnswer)
+	if question.CustomPromptID == nil {
+		return systemPrompt, userPrompt, nil, "", ""
+	}
+
+	var prompt models.PromptTemplate
+	if err := s.db.Where("user_id = ? AND id = ? AND enabled = ?", userID, *question.CustomPromptID, true).First(&prompt).Error; err != nil {
+		return systemPrompt, userPrompt, nil, "", ""
+	}
+	if strings.TrimSpace(prompt.SystemPrompt) != "" {
+		systemPrompt = applyReviewPromptVariables(prompt.SystemPrompt, question, materialTexts, answerTexts, userAnswer)
+	}
+	if strings.TrimSpace(prompt.UserPrompt) != "" {
+		userPrompt = applyReviewPromptVariables(prompt.UserPrompt, question, materialTexts, answerTexts, userAnswer)
+	}
+	promptID := prompt.ID
+	return systemPrompt, userPrompt, &promptID, prompt.Name, prompt.Version
+}
+
+func applyReviewPromptVariables(template string, question models.EssayQuestion, materialTexts []string, answerTexts []string, userAnswer string) string {
+	materials := strings.Join(materialTexts, "\n\n---\n\n")
+	referenceAnswers := strings.Join(answerTexts, "\n\n---\n\n")
+	values := map[string]string{
+		"answer":            userAnswer,
+		"user_answer":       userAnswer,
+		"question":          question.QuestionText,
+		"question_text":     question.QuestionText,
+		"question_no":       question.QuestionNo,
+		"question_type":     question.QuestionType,
+		"materials":         materials,
+		"reference_answers": referenceAnswers,
+		"answers":           referenceAnswers,
+		"scoring_rubric":    question.ScoringRubric,
+		"max_score":         fmt.Sprintf("%d", question.MaxScore),
+		"word_limit":        fmt.Sprintf("%d", question.WordLimit),
+	}
+	result := template
+	for key, value := range values {
+		result = strings.ReplaceAll(result, "{{"+key+"}}", value)
+		result = strings.ReplaceAll(result, "{{ "+key+" }}", value)
+	}
+	return result
+}
+
+func (s *EssayService) reviewModelSnapshot(userID uint, modelID uint) (string, string) {
+	if modelID == 0 {
+		return "启发式评分", ""
+	}
+	var model models.LLMModel
+	if err := s.db.Where("user_id = ? AND id = ?", userID, modelID).First(&model).Error; err != nil {
+		return "", ""
+	}
+	var provider models.LLMProvider
+	if err := s.db.Where("user_id = ? AND id = ?", userID, model.ProviderID).First(&provider).Error; err != nil {
+		return firstNonEmpty(model.Alias, model.Name), ""
+	}
+	return firstNonEmpty(model.Alias, model.Name), provider.Name
+}
+
+func mustJSONText(value any) string {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
 
 // LLMReviewResult 是 LLM 批改的结构化输出。
@@ -1068,8 +1163,8 @@ type ReviewHighlight struct {
 	Comment string `json:"comment"` // 批注
 }
 
-// callLLMReview 构建批改 prompt 并调用 LLM。
-func (s *EssayService) callLLMReview(userID uint, modelID uint, question models.EssayQuestion, materialTexts []string, answerTexts []string, userAnswer string) (*LLMReviewResult, error) {
+// callLLMReview 调用 LLM 并解析结构化批改结果。
+func (s *EssayService) callLLMReview(userID uint, modelID uint, question models.EssayQuestion, systemPrompt string, userPrompt string) (*LLMReviewResult, error) {
 	model, provider, err := s.getModelProvider(userID, modelID)
 	if err != nil {
 		return nil, fmt.Errorf("获取模型配置失败: %w", err)
@@ -1077,9 +1172,6 @@ func (s *EssayService) callLLMReview(userID uint, modelID uint, question models.
 	if !model.Enabled || !provider.Enabled {
 		return nil, errors.New("批改模型或服务商已禁用")
 	}
-
-	systemPrompt := buildReviewSystemPrompt()
-	userPrompt := buildReviewUserPrompt(question, materialTexts, answerTexts, userAnswer)
 
 	content, err := callOpenAICompatibleChat(provider.BaseURL, provider.APIKey, model.Name, systemPrompt, userPrompt)
 	if err != nil {

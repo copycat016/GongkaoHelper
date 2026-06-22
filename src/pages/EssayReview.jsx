@@ -3,7 +3,6 @@ import { useLocation } from "react-router-dom";
 import {
   Alert,
   Button,
-  Card,
   Col,
   Checkbox,
   Collapse,
@@ -39,7 +38,7 @@ import {
   RobotOutlined,
   StarOutlined,
 } from "@ant-design/icons";
-import PageHeader from "../components/PageHeader";
+import { AppCard, Page, PageHeader } from "../components/ui";
 import {
   assembleEssayQuestions,
   createEssayQuestion,
@@ -188,11 +187,21 @@ function EssayReview() {
     setReviewResult(null);
   }, [selectedDocumentId, selectedDocument]);
 
+  const loadDocuments = useCallback(async () => {
+    const items = await getEssayDocuments().catch(() => []);
+    setDocuments(items || []);
+    if (!selectedDocumentId && items?.[0]) {
+      setSelectedDocumentId(items[0].id);
+    }
+  }, [selectedDocumentId]);
+
   useEffect(() => {
-    loadDocuments();
-    getModels().then((items) => setModels(items || [])).catch(() => {});
-    getPrompts().then((items) => setPrompts(items || [])).catch(() => {});
-  }, []);
+    queueMicrotask(() => {
+      loadDocuments();
+      getModels().then((items) => setModels(items || [])).catch(() => {});
+      getPrompts().then((items) => setPrompts(items || [])).catch(() => {});
+    });
+  }, [loadDocuments]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -229,14 +238,6 @@ function EssayReview() {
     setMaterialSelection(materialIds);
     setAnswerSelection(answerIds);
   }, [selectedQuestion, relatedMaterials, relatedAnswers]);
-
-  const loadDocuments = async () => {
-    const items = await getEssayDocuments().catch(() => []);
-    setDocuments(items || []);
-    if (!selectedDocumentId && items?.[0]) {
-      setSelectedDocumentId(items[0].id);
-    }
-  };
 
   const runOperation = useCallback(async (label, action) => {
     const start = Date.now();
@@ -481,11 +482,11 @@ function EssayReview() {
   const sectionStats = useMemo(() => summarizeSections(sections), [sections]);
 
   return (
-    <div className="page-grid essay-workbench">
+    <Page className="essay-workbench">
       <PageHeader
         eyebrow="Essay Review"
         title="申论批改"
-        desc="上传 PDF，LLM 自动切分材料/题目/答案，选题作答，获得分维度专业批改。"
+        description="上传 PDF，LLM 自动切分材料/题目/答案，选题作答，获得分维度专业批改。"
       />
 
       <Steps
@@ -502,7 +503,7 @@ function EssayReview() {
         {/* ────── 左栏：上传 + 文档列表 ────── */}
         <Col xs={24} xl={7}>
           <Space direction="vertical" size="middle" className="essay-result-stack">
-            <Card className="glass-card" title="上传与解析" bordered={false}>
+            <AppCard title="上传与解析" bordered={false}>
               <Form form={uploadForm} layout="vertical" className="essay-upload-form">
                 <Form.Item name="title" label="文档标题">
                   <Input placeholder="例如 2025 省考申论 A 卷" />
@@ -553,9 +554,9 @@ function EssayReview() {
                   )}
                 </Space>
               </Form>
-            </Card>
+            </AppCard>
 
-            <Card className="glass-card" title="文档列表" bordered={false} size="small">
+            <AppCard title="文档列表" bordered={false} size="small">
               <List
                 dataSource={documents}
                 locale={{ emptyText: "暂无文档" }}
@@ -577,10 +578,10 @@ function EssayReview() {
                   </List.Item>
                 )}
               />
-            </Card>
+            </AppCard>
 
             {operations.length > 0 && (
-              <Card className="glass-card" title="操作日志" bordered={false} size="small">
+              <AppCard title="操作日志" bordered={false} size="small">
                 <List
                   dataSource={operations}
                   renderItem={(item) => (
@@ -592,7 +593,7 @@ function EssayReview() {
                     </List.Item>
                   )}
                 />
-              </Card>
+              </AppCard>
             )}
           </Space>
         </Col>
@@ -605,17 +606,16 @@ function EssayReview() {
               <Row gutter={[12, 12]}>
                 {Object.entries(sectionStats).filter(([, c]) => c > 0).map(([type, count]) => (
                   <Col xs={12} md={6} key={type}>
-                    <Card className="glass-card essay-mini-stat" bordered={false}>
+                    <AppCard className="essay-mini-stat" bordered={false}>
                       <Statistic title={sectionTypeMeta[type]?.label || type} value={count} />
-                    </Card>
+                    </AppCard>
                   </Col>
                 ))}
               </Row>
             )}
 
             {/* 题目列表 */}
-            <Card
-              className="glass-card"
+            <AppCard
               title={`题目列表 (${questions.length})`}
               bordered={false}
               extra={
@@ -680,12 +680,11 @@ function EssayReview() {
                   )}
                 />
               )}
-            </Card>
+            </AppCard>
 
             {/* 选中题目的详情：题目原文 + 关联材料 + 参考答案 */}
             {selectedQuestion && (
-              <Card
-                className="glass-card"
+              <AppCard
                 title={`第 ${selectedQuestion.question_no || "?"} 题详情`}
                 bordered={false}
                 extra={<Button size="small" icon={<EditOutlined />} onClick={() => openQuestionDrawer(selectedQuestion)}>编辑题目</Button>}
@@ -761,7 +760,7 @@ function EssayReview() {
                     />
                   </>
                 )}
-              </Card>
+              </AppCard>
             )}
 
             {/* 结构分段（折叠查看） */}
@@ -802,7 +801,7 @@ function EssayReview() {
         {/* ────── 右栏：作答 + 批改结果 ────── */}
         <Col xs={24} xl={8}>
           <Space direction="vertical" size="middle" className="essay-result-stack">
-            <Card className="glass-card" title="作答与批改" bordered={false}>
+            <AppCard title="作答与批改" bordered={false}>
               <Form form={reviewForm} layout="vertical">
                 <Form.Item name="question_id" label="选择题目" rules={[{ required: true, message: "请选择题目" }]}>
                   <Select
@@ -827,7 +826,7 @@ function EssayReview() {
                   提交批改
                 </Button>
               </Form>
-            </Card>
+            </AppCard>
 
             {/* ── 批改结果展示 ── */}
             {reviewResult && <ReviewResultCard result={reviewResult} />}
@@ -837,7 +836,7 @@ function EssayReview() {
 
       {/* ── 调试面板（底部折叠） ── */}
       {debugResult && (
-        <Card className="glass-card" title="LLM 切分调试" bordered={false} style={{ marginTop: 18 }}>
+        <AppCard title="LLM 切分调试" bordered={false} style={{ marginTop: 18 }}>
           <Alert
             type={debugResult.parse_error || debugResult.apply_error ? "warning" : "success"}
             showIcon
@@ -854,7 +853,7 @@ function EssayReview() {
               { key: "sections", label: "切分结果", children: <Input.TextArea readOnly rows={10} value={JSON.stringify(debugResult.sections || [], null, 2)} /> },
             ]}
           />
-        </Card>
+        </AppCard>
       )}
 
       <Drawer
@@ -924,7 +923,7 @@ function EssayReview() {
           </Form.Item>
         </Form>
       </Drawer>
-    </div>
+    </Page>
   );
 }
 
@@ -942,7 +941,7 @@ function ReviewResultCard({ result }) {
   const pct = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
 
   return (
-    <Card className="glass-card" title="批改结果" bordered={false}>
+    <AppCard title="批改结果" bordered={false}>
       {/* 总分 */}
       <div style={{ textAlign: "center", marginBottom: 16 }}>
         <Progress
@@ -1035,7 +1034,7 @@ function ReviewResultCard({ result }) {
           />
         </>
       )}
-    </Card>
+    </AppCard>
   );
 }
 

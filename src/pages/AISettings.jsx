@@ -1,16 +1,28 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Alert, AutoComplete, Button, Card, Checkbox, Form, Input, InputNumber, List, Radio, Row, Col, Space, Switch, Tabs, Tag, Typography, Upload, message, Progress } from "antd";
+import { Alert, AutoComplete, Button, Checkbox, Form, Input, InputNumber, List, Radio, Space, Switch, Tabs, Tag, Typography, Upload, message, Progress } from "antd";
+import { AppCard, FormCol, FormGrid } from "../components/ui";
 import LLMSettings from "./LLMSettings";
 import PromptSettings from "./PromptSettings";
 import { getOcrConfig, getOcrMonthUsage, updateOcrConfig } from "../api/ocr";
 import { exportBackup } from "../api/backup";
 import { getModels } from "../api/llm";
-import { parsePdfTest } from "../api/pdf";
+import { getPdfParserInfo, parsePdfTest } from "../api/pdf";
 
 const { Text } = Typography;
 
 const OCR_CONFIG_KEY = "aozora-ocr-config";
+
+const pdfEngineLabels = {
+  poppler: "Poppler pdftotext",
+  go_pdf: "Go PDF library",
+  raw_text: "粘贴文本",
+  structured_ocr: "结构化 OCR",
+};
+
+function formatPdfEngine(engine, tool) {
+  return tool || pdfEngineLabels[engine] || engine || "未知工具";
+}
 
 function AISettings() {
   const location = useLocation();
@@ -118,7 +130,7 @@ function OCRConfig() {
   };
 
   return (
-    <Card className="glass-card" title="OCR 识别方式" bordered={false}>
+    <AppCard title="OCR 识别方式">
       <Alert
         type="info"
         showIcon
@@ -139,52 +151,52 @@ function OCRConfig() {
             if (mode === "baidu") {
               return (
                 <>
-                  <Card className="glass-card settings-sub-card" bordered={false}>
-                    <Row gutter={[14, 14]}>
-                      <Col xs={24} md={8}>
+                  <AppCard variant="plain" className="settings-sub-card">
+                    <FormGrid>
+                      <FormCol sm={24} md={8}>
                         <Form.Item name="baiduEnabled" label="启用百度 OCR" valuePropName="checked">
                           <Switch />
                         </Form.Item>
-                      </Col>
-                      <Col xs={24} md={8}>
+                      </FormCol>
+                      <FormCol sm={24} md={8}>
                         <Form.Item name="usageText" label="本地调用统计">
                           <Input readOnly placeholder="后端启动后自动读取" />
                         </Form.Item>
-                      </Col>
-                      <Col xs={24} md={8}>
+                      </FormCol>
+                      <FormCol sm={24} md={8}>
                         <Form.Item name="baiduSource" label="配置来源">
                           <Input readOnly placeholder="env / local_file" />
                         </Form.Item>
-                      </Col>
-                      <Col xs={24} md={12}>
+                      </FormCol>
+                      <FormCol md={12}>
                         <Form.Item label={`API Key ${masked.api_key_masked ? `(${masked.api_key_masked})` : ""}`} name="baiduApiKey">
                           <Input.Password placeholder="留空则保持当前值" autoComplete="new-password" />
                         </Form.Item>
-                      </Col>
-                      <Col xs={24} md={12}>
+                      </FormCol>
+                      <FormCol md={12}>
                         <Form.Item label={`Secret Key ${masked.secret_masked ? `(${masked.secret_masked})` : ""}`} name="baiduSecretKey">
                           <Input.Password placeholder="留空则保持当前值" autoComplete="new-password" />
                         </Form.Item>
-                      </Col>
-                      <Col xs={24} md={12}>
+                      </FormCol>
+                      <FormCol md={12}>
                         <Form.Item name="baiduMonthlyLimit" label="本地月上限">
                           <InputNumber min={0} className="full-input" />
                         </Form.Item>
-                      </Col>
-                      <Col xs={24} md={12}>
+                      </FormCol>
+                      <FormCol md={12}>
                         <Form.Item name="baiduTimeoutSeconds" label="请求超时秒数">
                           <InputNumber min={5} max={120} className="full-input" />
                         </Form.Item>
-                      </Col>
-                    </Row>
+                      </FormCol>
+                    </FormGrid>
                     <Button type="primary" onClick={handleSaveBaidu} loading={saving}>
                       保存百度 OCR 配置
                     </Button>
-                  </Card>
-                  <Card className="glass-card settings-sub-card" title="百度 OCR 能力额度" bordered={false}>
-                    <Row gutter={[14, 14]}>
+                  </AppCard>
+                  <AppCard variant="plain" className="settings-sub-card" title="百度 OCR 能力额度">
+                    <FormGrid>
                       {(usage?.engines || []).map((item) => (
-                        <Col xs={24} md={12} xl={8} key={item.key}>
+                        <FormCol sm={24} md={12} xl={8} key={item.key}>
                           <div className="ocr-quota-card">
                             <div className="ocr-quota-head">
                               <strong>{item.label}</strong>
@@ -200,10 +212,10 @@ function OCRConfig() {
                             </Form.Item>
                             <Text type="secondary">{item.description}</Text>
                           </div>
-                        </Col>
+                        </FormCol>
                       ))}
-                    </Row>
-                  </Card>
+                    </FormGrid>
+                  </AppCard>
                   <Space direction="vertical">
                     <Text>印刷体题目：默认走通用文字识别。</Text>
                     <Text>高精度印刷体：默认走高精度文字识别。</Text>
@@ -252,7 +264,7 @@ function OCRConfig() {
           <Switch />
         </Form.Item>
       </Form>
-    </Card>
+    </AppCard>
   );
 }
 
@@ -260,10 +272,12 @@ function PDFCapability() {
   const [form] = Form.useForm();
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
+  const [parserInfo, setParserInfo] = useState(null);
 
   useEffect(() => {
     const raw = localStorage.getItem("aozora-pdf-config");
     form.setFieldsValue(raw ? JSON.parse(raw) : defaultPDFConfig);
+    getPdfParserInfo().then(setParserInfo).catch(() => setParserInfo(null));
   }, [form]);
 
   const handleChange = (_, values) => {
@@ -285,42 +299,58 @@ function PDFCapability() {
   };
 
   return (
-    <Card className="glass-card" title="PDF 解析配置" bordered={false}>
+    <AppCard title="PDF 解析配置">
       <Space direction="vertical" size="middle" className="backup-panel">
         <Form form={form} layout="vertical" initialValues={defaultPDFConfig} onValuesChange={handleChange}>
-          <Card className="glass-card settings-sub-card" title="PDF 解析测试端口" bordered={false}>
+          <AppCard variant="plain" className="settings-sub-card" title="PDF 解析测试端口">
             <Alert
               type="success"
               showIcon
-              message="Go PDF 文本解析测试"
-              description="这个接口不入库、不切 chunk、不分类，只返回 Go PDF 解析库从每页抽出的文本，方便判断 PDF 文本层到底是什么情况。"
+              message="PDF 文本解析测试"
+              description="这个接口不入库、不切 chunk、不分类，只返回当前 PDF 文本抽取工具从每页抽出的文本，方便判断 PDF 文本层到底是什么情况。"
             />
-            <Row gutter={[14, 14]}>
-              <Col xs={24} md={8}>
+            <div className="pdf-tool-status">
+              <Space wrap>
+                <Text strong>当前优先工具</Text>
+                <Tag color="geekblue">
+                  {formatPdfEngine(parserInfo?.preferred_engine, parserInfo?.preferred_tool)}
+                </Tag>
+                {parserInfo?.fallback_engine && (
+                  <Tag>{`失败回退：${formatPdfEngine(parserInfo.fallback_engine, parserInfo.fallback_tool)}`}</Tag>
+                )}
+                {parserInfo?.poppler_path && <Tag color="blue">{parserInfo.poppler_path}</Tag>}
+              </Space>
+              {parserInfo?.reason && <Text type="secondary">{parserInfo.reason}</Text>}
+            </div>
+            <FormGrid>
+              <FormCol sm={24} md={8}>
                 <Form.Item name="testHost" label="测试 Host">
                   <Input placeholder="localhost" />
                 </Form.Item>
-              </Col>
-              <Col xs={24} md={8}>
+              </FormCol>
+              <FormCol sm={24} md={8}>
                 <Form.Item name="testPort" label="测试端口">
                   <InputNumber min={21000} max={65535} className="full-input" />
                 </Form.Item>
-              </Col>
-              <Col xs={24} md={8}>
+              </FormCol>
+              <FormCol sm={24} md={8}>
                 <Form.Item name="testEndpoint" label="测试 Endpoint">
                   <Input readOnly placeholder="/api/pdf/parse-test" />
                 </Form.Item>
-              </Col>
-            </Row>
+              </FormCol>
+            </FormGrid>
             <Upload beforeUpload={(file) => { handleTestPDF(file); return false; }} showUploadList={false} accept="application/pdf">
               <Button type="primary" loading={testing}>上传 PDF 并输出文字</Button>
             </Upload>
-          </Card>
+          </AppCard>
         </Form>
 
         {testResult && (
-          <Card className="glass-card settings-sub-card" title="测试输出" bordered={false}>
+          <AppCard variant="plain" className="settings-sub-card" title="测试输出">
             <Space wrap>
+              <Tag color="purple">
+                本次调用：{formatPdfEngine(testResult.source_engine)}
+              </Tag>
               <Tag color={testResult.quality?.ok ? "green" : "red"}>{testResult.quality?.ok ? "文本层可用" : "文本层异常"}</Tag>
               <Tag>{testResult.page_count || 0} 页</Tag>
               <Tag>{testResult.total_chars || 0} 字符</Tag>
@@ -337,10 +367,10 @@ function PDFCapability() {
                 </List.Item>
               )}
             />
-          </Card>
+          </AppCard>
         )}
       </Space>
-    </Card>
+    </AppCard>
   );
 }
 
@@ -367,7 +397,7 @@ function BackupExportPanel() {
   };
 
   return (
-    <Card className="glass-card" title="数据备份导出" bordered={false}>
+    <AppCard title="数据备份导出">
       <Space direction="vertical" size="middle" className="backup-panel">
         <Alert
           type="info"
@@ -382,7 +412,7 @@ function BackupExportPanel() {
           导出 JSON 备份
         </Button>
       </Space>
-    </Card>
+    </AppCard>
   );
 }
 

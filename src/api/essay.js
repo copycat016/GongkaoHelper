@@ -1,4 +1,4 @@
-import { api } from "./request";
+import { api, authHeaders } from "./request";
 
 function apiUrl(path) {
   return `/api${path}`;
@@ -23,6 +23,7 @@ export async function createEssayDocument({ file, title, rawText, documentRole, 
 
   const response = await fetch(apiUrl("/essay/documents"), {
     method: "POST",
+    headers: authHeaders(),
     body: formData,
   });
   return unwrapResponse(response);

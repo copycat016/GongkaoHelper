@@ -9,17 +9,27 @@ import (
 const defaultUserID uint = 1
 
 func userIDFromRequest(c *gin.Context) uint {
-	raw := c.GetHeader("X-User-ID")
-	if raw == "" {
+	value, exists := c.Get("user_id")
+	if !exists {
 		return defaultUserID
 	}
 
-	id, err := strconv.ParseUint(raw, 10, 64)
-	if err != nil || id == 0 {
-		return defaultUserID
+	switch typed := value.(type) {
+	case uint:
+		if typed > 0 {
+			return typed
+		}
+	case uint64:
+		if typed > 0 {
+			return uint(typed)
+		}
+	case int:
+		if typed > 0 {
+			return uint(typed)
+		}
 	}
 
-	return uint(id)
+	return defaultUserID
 }
 
 func uintParam(c *gin.Context, name string) (uint, error) {

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Button,
-  Card,
   Col,
   Input,
   Row,
@@ -23,7 +22,7 @@ import {
   ScanOutlined,
   SendOutlined,
 } from "@ant-design/icons";
-import PageHeader from "../components/PageHeader";
+import { AppCard, Page, PageHeader } from "../components/ui";
 import { getOcrMonthUsage, getOcrScenes } from "../api/ocr";
 import { intakeFromImage, intakeFromPdf, intakeFromText } from "../api/intake";
 
@@ -116,16 +115,16 @@ function IntakePage() {
   };
 
   return (
-    <div className="page-grid intake-page">
+    <Page className="intake-page">
       <PageHeader
         eyebrow="Intake"
         title="录入器"
-        desc="把图片、PDF、粘贴文本统一转成可检查、可修正、可流转的纯文本。"
+        description="把图片、PDF、粘贴文本统一转成可检查、可修正、可流转的纯文本。"
       />
 
       <Row gutter={[18, 18]} align="stretch">
         <Col xs={24} xl={8}>
-          <Card className="glass-card intake-source-card" title="录入来源" bordered={false}>
+          <AppCard className="intake-source-card" title="录入来源">
             <Tabs
               activeKey={activeTab}
               onChange={setActiveTab}
@@ -203,14 +202,13 @@ function IntakePage() {
                 },
               ]}
             />
-          </Card>
+          </AppCard>
         </Col>
 
         <Col xs={24} xl={16}>
-          <Card
-            className="glass-card intake-preview-card"
+          <AppCard
+            className="intake-preview-card"
             title="统一预览"
-            bordered={false}
             extra={
               <Space wrap>
                 <Button icon={<CopyOutlined />} disabled={!currentText} onClick={handleCopy}>复制文本</Button>
@@ -255,10 +253,10 @@ function IntakePage() {
                 <span>选择一种来源开始录入，结果会统一出现在这里。</span>
               </div>
             )}
-          </Card>
+          </AppCard>
         </Col>
       </Row>
-    </div>
+    </Page>
   );
 }
 

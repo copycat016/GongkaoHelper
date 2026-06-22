@@ -81,10 +81,20 @@ type EssaySectionRelation struct {
 
 type EssayReview struct {
 	BaseModel
-	QuestionID    uint    `json:"question_id" gorm:"not null;index"`
-	ReviewModelID uint    `json:"review_model_id" gorm:"index"`
-	UserAnswer    string  `json:"user_answer" gorm:"type:text;not null"`
-	Score         float64 `json:"score" gorm:"not null;default:0"`
-	MaxScore      int     `json:"max_score" gorm:"not null;default:100"`
-	ResultJSON    string  `json:"result_json" gorm:"type:text"`
+	QuestionID            uint    `json:"question_id" gorm:"not null;index"`
+	ReviewModelID         uint    `json:"review_model_id" gorm:"index"`
+	ReviewModelName       string  `json:"review_model_name" gorm:"size:160"`
+	ReviewProviderName    string  `json:"review_provider_name" gorm:"size:160"`
+	PromptTemplateID      *uint   `json:"prompt_template_id" gorm:"index"`
+	PromptTemplateName    string  `json:"prompt_template_name" gorm:"size:160"`
+	PromptTemplateVersion string  `json:"prompt_template_version" gorm:"size:40"`
+	UserAnswer            string  `json:"user_answer" gorm:"type:text;not null"`
+	QuestionSnapshot      string  `json:"question_snapshot" gorm:"type:text"`
+	MaterialSnapshot      string  `json:"material_snapshot" gorm:"type:text"`
+	AnswerSnapshot        string  `json:"answer_snapshot" gorm:"type:text"`
+	SystemPromptSnapshot  string  `json:"system_prompt_snapshot" gorm:"type:text"`
+	UserPromptSnapshot    string  `json:"user_prompt_snapshot" gorm:"type:text"`
+	Score                 float64 `json:"score" gorm:"not null;default:0"`
+	MaxScore              int     `json:"max_score" gorm:"not null;default:100"`
+	ResultJSON            string  `json:"result_json" gorm:"type:text"`
 }

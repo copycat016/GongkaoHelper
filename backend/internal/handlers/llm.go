@@ -41,7 +41,7 @@ func (h *LLMHandler) CreateProvider(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, 50002, "create provider failed")
 		return
 	}
-	response.Success(c, provider)
+	response.Success(c, services.SafeLLMProvider(provider))
 }
 
 func (h *LLMHandler) UpdateProvider(c *gin.Context) {

@@ -1,6 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-
-const MusicContext = createContext(null);
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MusicContext } from "./musicContext";
 
 function getPathFromSrc(src) {
   try {
@@ -25,12 +24,6 @@ export function MusicProvider({ children }) {
   const safeIndex = Math.min(currentIndex, Math.max(tracks.length - 1, 0));
   const currentTrack = tracks[safeIndex];
   const percent = duration ? Math.round((currentTime / duration) * 100) : 0;
-
-  useEffect(() => {
-    if (currentIndex >= tracks.length && tracks.length > 0) {
-      setCurrentIndex(0);
-    }
-  }, [tracks.length, currentIndex]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -191,12 +184,4 @@ export function MusicProvider({ children }) {
       />
     </MusicContext.Provider>
   );
-}
-
-export function useMusic() {
-  const context = useContext(MusicContext);
-  if (!context) {
-    throw new Error("useMusic must be used inside MusicProvider");
-  }
-  return context;
 }

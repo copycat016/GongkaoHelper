@@ -1,0 +1,702 @@
+/* 首页总览（Dashboard）—— 母题组件 + 语义 token，颜色随主题切换，与侧边栏同语言。
+   骨架走 Page/PageHeader/AppCard/SectionHeader/StatCard；本文件只负责域内件（任务/周/阶段列表、
+   提醒、洞察行、滚动面板）的皮肤，全部 token 化、无写死色。 */
+
+.dashboard-page {
+  min-width: 0;
+}
+
+/* ---------- 标签栏（药丸，active 走行动色） ---------- */
+.dashboard-tabs.app-section-tabs > .ant-tabs-nav {
+  width: fit-content;
+  max-width: 100%;
+  padding: var(--space-1);
+  border-color: var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: none;
+}
+
+.dashboard-tabs.app-section-tabs .ant-tabs-nav-list {
+  width: auto;
+  gap: var(--space-1);
+}
+
+.dashboard-tabs.app-section-tabs .ant-tabs-tab {
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 34px;
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-text-secondary);
+  font-weight: var(--weight-black);
+}
+
+.dashboard-tabs.app-section-tabs .ant-tabs-tab-active {
+  background: var(--color-accent-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+
+.dashboard-tabs.app-section-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--color-accent) !important;
+}
+
+.dashboard-tabs > .ant-tabs-content-holder {
+  min-width: 0;
+}
+
+.dashboard-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ---------- 每个 Tab 的纵向堆叠 ---------- */
+.dashboard-today-stack,
+.dashboard-week-stack,
+.dashboard-stage-stack {
+  display: grid;
+  gap: var(--space-4);
+}
+
+/* ---------- 问候条（弱化时钟，无装饰符号） ---------- */
+.dashboard-greeting {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.dashboard-greeting strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-md);
+  font-weight: var(--weight-black);
+}
+
+.dashboard-greeting span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-sm);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* StatCard hint 内嵌的细进度条 */
+.dashboard-stat-progress {
+  display: grid;
+  gap: 4px;
+}
+
+.dashboard-stat-progress .ant-progress {
+  margin: 0;
+  line-height: 1;
+}
+
+.dashboard-stat-progress span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-xs);
+}
+
+/* ---------- 双栏规划布局 ---------- */
+.dashboard-plan-layout {
+  display: grid;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.dashboard-plan-layout-today,
+.dashboard-plan-layout-week {
+  grid-template-columns: minmax(0, 1.66fr) minmax(300px, 0.74fr);
+}
+
+.dashboard-plan-side {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.dashboard-plan-panel {
+  min-width: 0;
+}
+
+.dashboard-plan-content {
+  min-width: 0;
+}
+
+/* 主任务卡：固定高度，内部任务列表滚动 */
+.dashboard-today-tasks-panel.ui-card {
+  display: flex;
+  flex-direction: column;
+  max-height: max(300px, calc(100vh - 360px));
+}
+
+.dashboard-today-tasks-panel.ui-card > .ant-card-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.dashboard-today-tasks-panel .dashboard-plan-content {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.dashboard-today-tasks-panel .dashboard-task-list {
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+/* 右侧两个紧凑卡：各自内部滚动 */
+.dashboard-today-side {
+  display: grid;
+  grid-template-rows: minmax(0, 0.88fr) minmax(0, 1.12fr);
+  gap: var(--space-4);
+  max-height: max(300px, calc(100vh - 360px));
+}
+
+.dashboard-today-side .dashboard-plan-panel.ui-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dashboard-today-side .dashboard-plan-panel.ui-card > .ant-card-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.dashboard-today-side .dashboard-plan-content,
+.dashboard-today-side .dashboard-deadline-list,
+.dashboard-today-side .dashboard-recent-list {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+}
+
+/* 紧凑卡里的空状态收窄 */
+.dashboard-compact-panel .ui-empty {
+  min-height: 88px;
+}
+
+.dashboard-compact-panel .ui-empty .ant-empty-image {
+  display: none;
+}
+
+/* ---------- 快速输入 ---------- */
+.dashboard-task-input {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 40px;
+  margin-bottom: var(--space-3);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.dashboard-task-input:focus-within {
+  border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+.dashboard-task-input .ant-input {
+  padding-inline: 0;
+  color: var(--color-text-primary);
+  font-weight: var(--weight-bold);
+}
+
+.dashboard-task-input-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  font-size: var(--font-base);
+}
+
+.dashboard-task-input-hint {
+  padding: 3px 7px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-muted);
+  font-size: 11px;
+  font-weight: var(--weight-black);
+}
+
+/* ---------- 日任务列表 ---------- */
+.dashboard-task-list .ant-list-item {
+  padding: 7px var(--space-2);
+  border-bottom: 1px solid var(--color-border-soft);
+}
+
+.dashboard-task-list .ant-list-item:last-child {
+  border-bottom: 0;
+}
+
+.dashboard-task-item {
+  position: relative;
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.dashboard-task-item:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 35%, var(--color-border));
+  background: var(--color-surface-muted);
+}
+
+.dashboard-task-item + .dashboard-task-item,
+.dashboard-week-item + .dashboard-week-item {
+  margin-top: 5px;
+}
+
+.dashboard-priority-dot {
+  width: 4px;
+  height: 24px;
+  flex: 0 0 4px;
+  border-radius: var(--radius-pill);
+  opacity: 0.86;
+}
+
+.dashboard-task-title-row,
+.dashboard-week-head,
+.dashboard-week-meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dashboard-task-item .dashboard-task-title {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-weight: var(--weight-bold);
+  cursor: text;
+  word-break: break-word;
+}
+
+.dashboard-task-item.done .dashboard-task-title {
+  color: var(--color-text-secondary);
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.dashboard-task-main {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+}
+
+.dashboard-task-main strong,
+.dashboard-stage-title {
+  color: var(--color-text-primary);
+  font-size: var(--font-base);
+  font-weight: var(--weight-black);
+}
+
+.dashboard-task-meta-line {
+  color: var(--color-text-secondary);
+  font-size: var(--font-xs);
+  font-weight: var(--weight-medium);
+  line-height: 1.45;
+}
+
+.dashboard-task-list.compact .ant-list-item {
+  padding-block: 6px;
+}
+
+/* ---------- 周任务条 ---------- */
+.dashboard-week-item .dashboard-task-main {
+  width: 100%;
+}
+
+.dashboard-week-item {
+  padding: var(--space-3) !important;
+  border: 1px solid var(--color-border-soft) !important;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.dashboard-week-head {
+  justify-content: space-between;
+}
+
+.dashboard-week-head > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dashboard-week-head strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-week-meta {
+  flex-wrap: wrap;
+  color: var(--color-text-secondary);
+  font-size: var(--font-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.dashboard-week-meta span,
+.dashboard-stage-dates {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---------- 阶段目标卡 ---------- */
+.dashboard-plan-note {
+  color: var(--color-text-secondary);
+  font-size: var(--font-sm);
+  font-weight: var(--weight-medium);
+  line-height: 1.7;
+}
+
+.dashboard-stage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 400px));
+  gap: var(--space-3);
+  align-items: stretch;
+}
+
+.dashboard-stage-card.ant-card {
+  height: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: none;
+  overflow: hidden;
+  transition: border-color var(--transition-fast);
+}
+
+.dashboard-stage-card.ant-card:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
+}
+
+.dashboard-stage-card .ant-card-body {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.dashboard-stage-card .ant-card-actions {
+  border-top-color: var(--color-border-soft);
+  background: var(--color-surface-muted);
+}
+
+.dashboard-stage-card .ant-card-actions > li {
+  margin: 10px 0;
+}
+
+.dashboard-stage-card .ant-card-actions .anticon {
+  color: var(--color-text-secondary);
+  font-size: var(--font-md);
+  transition: color var(--transition-fast), transform var(--transition-fast);
+}
+
+.dashboard-stage-card .ant-card-actions .anticon:hover {
+  color: var(--color-accent);
+  transform: translateY(-1px);
+}
+
+.dashboard-stage-card-head {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.dashboard-stage-title {
+  min-width: 0;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.dashboard-stage-dates {
+  color: var(--color-text-secondary);
+  font-size: var(--font-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.dashboard-stage-target {
+  min-height: 44px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-soft);
+}
+
+.dashboard-stage-card-progress {
+  display: grid;
+  gap: 7px;
+}
+
+.dashboard-stage-card-progress > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.dashboard-stage-card-progress span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.dashboard-stage-card-progress strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-sm);
+  font-weight: var(--weight-black);
+}
+
+.dashboard-stage-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.dashboard-stage-metrics .ui-metric-pill {
+  display: flex;
+  justify-content: space-between;
+}
+
+.dashboard-stage-current,
+.dashboard-stage-current-empty {
+  display: grid;
+  gap: 6px;
+  padding: 9px 10px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+  font-size: var(--font-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.dashboard-stage-current::before,
+.dashboard-stage-current-empty::before {
+  content: "当前推进";
+  color: var(--color-text-primary);
+  font-size: var(--font-xs);
+  font-weight: var(--weight-black);
+}
+
+.dashboard-stage-current span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- 到期 / 待安排 / 学习记录 ---------- */
+.dashboard-deadline-list .ant-list-item {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-border-soft);
+}
+
+.dashboard-reminder-item {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dashboard-reminder-item span:last-child {
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-weight: var(--weight-bold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-inbox-stack {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.dashboard-form-alert {
+  margin-bottom: var(--space-4);
+}
+
+.dashboard-recent-list .ant-list-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--color-border);
+}
+
+.dashboard-recent-note {
+  max-width: 60%;
+  color: var(--color-text-secondary);
+  font-size: var(--font-xs);
+  font-weight: var(--weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-recent-empty {
+  min-height: 64px;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-muted);
+  font-size: var(--font-sm);
+  font-weight: var(--weight-medium);
+  text-align: center;
+}
+
+/* ---------- 洞察行 ---------- */
+.dashboard-insight-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.dashboard-insight-card {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 54px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.dashboard-insight-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  font-size: var(--font-md);
+}
+
+.dashboard-insight-card strong,
+.dashboard-insight-card span:not(.dashboard-insight-icon) {
+  display: block;
+  min-width: 0;
+}
+
+.dashboard-insight-card strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-sm);
+  font-weight: var(--weight-black);
+  line-height: 1.2;
+}
+
+.dashboard-insight-card span:not(.dashboard-insight-icon) {
+  margin-top: 3px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-xs);
+  font-weight: var(--weight-medium);
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- 滚动条 ---------- */
+.dashboard-today-tasks-panel .dashboard-task-list::-webkit-scrollbar,
+.dashboard-today-side .dashboard-plan-content::-webkit-scrollbar,
+.dashboard-today-side .dashboard-deadline-list::-webkit-scrollbar,
+.dashboard-today-side .dashboard-recent-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dashboard-today-tasks-panel .dashboard-task-list::-webkit-scrollbar-thumb,
+.dashboard-today-side .dashboard-plan-content::-webkit-scrollbar-thumb,
+.dashboard-today-side .dashboard-deadline-list::-webkit-scrollbar-thumb,
+.dashboard-today-side .dashboard-recent-list::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: var(--radius-pill);
+  background: var(--color-border);
+  background-clip: padding-box;
+}
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 1199px) {
+  .dashboard-plan-layout-today,
+  .dashboard-plan-layout-week {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-today-tasks-panel.ui-card,
+  .dashboard-today-side {
+    max-height: none;
+  }
+
+  .dashboard-today-side {
+    grid-template-rows: none;
+  }
+
+  .dashboard-today-side .dashboard-plan-panel.ui-card {
+    overflow: visible;
+  }
+}
+
+@media (max-width: 767px) {
+  .dashboard-stage-grid,
+  .dashboard-insight-row {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-stage-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-task-input {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+
+  .dashboard-task-input-hint {
+    display: none;
+  }
+
+  .dashboard-task-title-row,
+  .dashboard-week-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .dashboard-week-head strong {
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .dashboard-tabs.app-section-tabs > .ant-tabs-nav {
+    width: fit-content;
+    max-width: 100%;
+  }
+}

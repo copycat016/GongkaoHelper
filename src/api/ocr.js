@@ -1,4 +1,4 @@
-import { api } from "./request";
+import { api, authHeaders } from "./request";
 
 export const getOcrEngines = () => api.get("/ocr/engines");
 export const getOcrScenes = () => api.get("/ocr/scenes");
@@ -18,6 +18,7 @@ export async function runOcr({ file, scene, engine }) {
 
   const response = await fetch("/api/ocr/recognize", {
     method: "POST",
+    headers: authHeaders(),
     body: formData,
   });
   const result = await response.json().catch(() => ({}));

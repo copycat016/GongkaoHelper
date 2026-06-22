@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Button,
-  Card,
   Col,
   DatePicker,
   Form,
@@ -19,8 +18,15 @@ import {
 } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
-import PageHeader from "../components/PageHeader";
-import StatCard from "../components/StatCard";
+import {
+  AppCard,
+  FormCol,
+  FormGrid,
+  Page,
+  PageHeader,
+  StatCard,
+  Toolbar,
+} from "../components/ui";
 import { getLogs, getLogStats, saveLog } from "../api/logs";
 
 const { Text } = Typography;
@@ -44,7 +50,7 @@ function StudyLogs() {
   const [manualOpen, setManualOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const loadData = async (nextDate = date, nextScope = scope) => {
+  const loadData = useCallback(async (nextDate = date, nextScope = scope) => {
     setLoading(true);
     try {
       const params = {
@@ -57,11 +63,11 @@ function StudyLogs() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [date, scope]);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    queueMicrotask(() => loadData());
+  }, [loadData]);
 
   const handleScopeChange = (value) => {
     setScope(value);
@@ -135,9 +141,13 @@ function StudyLogs() {
   ];
 
   return (
-    <div className="page-grid">
-      <PageHeader eyebrow="Logs" title="学习日志" desc="查看某一天、某周或某月的学习时长、题型统计和番茄钟完成情况。" />
-      <Card className="glass-card log-filter-card" bordered={false}>
+    <Page>
+      <PageHeader
+        eyebrow="Logs"
+        title="学习日志"
+        description="查看某一天、某周或某月的学习时长、题型统计和番茄钟完成情况。"
+      />
+      <AppCard>
         <Row gutter={[16, 16]} align="middle" justify="space-between">
           <Col xs={24} md={12}>
             <Space direction="vertical" size={4}>
@@ -146,7 +156,7 @@ function StudyLogs() {
             </Space>
           </Col>
           <Col xs={24} md={12}>
-            <Space wrap className="log-filter-actions">
+            <Toolbar align="end">
               <Button type="primary" icon={<PlusOutlined />} onClick={openManualLog}>补登日志</Button>
               <Segmented options={scopeOptions} value={scope} onChange={handleScopeChange} />
               <DatePicker
@@ -155,10 +165,10 @@ function StudyLogs() {
                 allowClear={false}
                 onChange={handleDateChange}
               />
-            </Space>
+            </Toolbar>
           </Col>
         </Row>
-      </Card>
+      </AppCard>
       <Row gutter={[16, 16]}>
         <Col xs={24} md={8}><StatCard label="总时长" value={formatMinutes(stats.total_minutes || 0)} hint={scopeHint(scope)} /></Col>
         <Col xs={24} md={8}><StatCard label="番茄钟" value={String(stats.pomodoro_count || 0)} hint="完成次数" /></Col>
@@ -166,14 +176,14 @@ function StudyLogs() {
       </Row>
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={8}>
-          <Card className="glass-card" title="学习时间轴" bordered={false}>
+          <AppCard title="学习时间轴">
             <Timeline items={logs.map((item) => ({ children: `${formatTime(item.start_time)}-${formatTime(item.end_time)} ${item.subject || item.study_type || "学习"} · ${item.note || ""}` }))} />
-          </Card>
+          </AppCard>
         </Col>
         <Col xs={24} lg={16}>
-          <Card className="glass-card" title="日志表格" bordered={false}>
+          <AppCard title="日志表格">
             <Table rowKey="id" columns={columns} dataSource={logs} loading={loading} pagination={false} scroll={{ x: 800 }} />
-          </Card>
+          </AppCard>
         </Col>
       </Row>
       <Modal
@@ -188,30 +198,30 @@ function StudyLogs() {
           <Form.Item name="start_time" label="开始时间" rules={[{ required: true, message: "请选择开始时间" }]}>
             <DatePicker showTime format="YYYY-MM-DD HH:mm" className="full-input" />
           </Form.Item>
-          <Row gutter={12}>
-            <Col xs={24} sm={12}>
+          <FormGrid>
+            <FormCol>
               <Form.Item name="end_time" label="结束时间">
                 <DatePicker showTime format="YYYY-MM-DD HH:mm" className="full-input" />
               </Form.Item>
-            </Col>
-            <Col xs={24} sm={12}>
+            </FormCol>
+            <FormCol>
               <Form.Item name="duration_min" label="持续分钟">
                 <InputNumber min={1} max={1440} className="full-input" />
               </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={12}>
-            <Col xs={24} sm={12}>
+            </FormCol>
+          </FormGrid>
+          <FormGrid>
+            <FormCol>
               <Form.Item name="study_type" label="学习类型" rules={[{ required: true, message: "请选择学习类型" }]}>
                 <Select options={studyTypeOptions.map((value) => ({ value, label: value }))} />
               </Form.Item>
-            </Col>
-            <Col xs={24} sm={12}>
+            </FormCol>
+            <FormCol>
               <Form.Item name="subject" label="科目">
                 <Select allowClear options={subjectOptions.map((value) => ({ value, label: value }))} />
               </Form.Item>
-            </Col>
-          </Row>
+            </FormCol>
+          </FormGrid>
           <Form.Item name="question_type" label="题型 / 内容">
             <Input placeholder="例如 归纳概括题、材料阅读、资料分析" />
           </Form.Item>
@@ -220,7 +230,7 @@ function StudyLogs() {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </Page>
   );
 }
 

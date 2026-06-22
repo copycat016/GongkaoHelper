@@ -18,6 +18,8 @@ cp .env.example .env
 # 保持 DB_DRIVER=sqlite 即可
 ```
 
+开发模式首次启动空库会创建 `admin / 123456`，仅限本地调试。生产或公网部署必须设置 `GIN_MODE=release`、`JWT_SECRET` 和 `AUTH_BOOTSTRAP_PASSWORD`。
+
 如需 PostgreSQL：
 
 ```bash
@@ -107,5 +109,5 @@ pdftotext -v
 ## 下一步
 
 - 维护开发参考：[`MAINTENANCE.md`](MAINTENANCE.md)
-- 待办清单：[`TODO.md`](TODO.md)
+- 前端设计系统：[`design-system.md`](design-system.md)
 - 后端接口示例：[`../backend/docs/backend-dev.md`](../backend/docs/backend-dev.md)

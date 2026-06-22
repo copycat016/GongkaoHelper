@@ -2,105 +2,30 @@ import { useEffect, useState } from "react";
 import { Button, Drawer, Form, Input, message, Select, Slider, Space, Switch, Upload } from "antd";
 import { BgColorsOutlined, UploadOutlined } from "@ant-design/icons";
 import { getThemeConfig, saveThemeConfig } from "../api/theme";
+import { applyThemeConfig, defaultConfig, palettes } from "../theme/applyThemeConfig";
+import { useThemePalette } from "../theme/themeContext";
 
-const palettes = {
-  aozora: {
-    label: "Aozora Blue",
-    bgMain: "#f5f9ff",
-    bgMaskRgb: "245, 249, 255",
-    primaryBlue: "#6aa7e8",
-    deepBlueGray: "#2f4058",
-    lightBlue: "#dceeff",
-    accentPurple: "#b9a7f5",
-    accentPink: "#f5b7cf",
-    textBlueGray: "#5d6f86",
-  },
-  sakura: {
-    label: "Sakura Mist",
-    bgMain: "#fff7fb",
-    bgMaskRgb: "255, 247, 251",
-    primaryBlue: "#7aa8f5",
-    deepBlueGray: "#3f4058",
-    lightBlue: "#eef3ff",
-    accentPurple: "#c6b5ff",
-    accentPink: "#f4a9c6",
-    textBlueGray: "#75677a",
-  },
-  matcha: {
-    label: "Matcha Morning",
-    bgMain: "#f6fbf5",
-    bgMaskRgb: "246, 251, 245",
-    primaryBlue: "#73b7c8",
-    deepBlueGray: "#314c4f",
-    lightBlue: "#e2f4f5",
-    accentPurple: "#b8c9ef",
-    accentPink: "#f2b8bd",
-    textBlueGray: "#607b75",
-  },
-  sumi: {
-    label: "Sumi Soft",
-    bgMain: "#f7f8fb",
-    bgMaskRgb: "247, 248, 251",
-    primaryBlue: "#7d9fd8",
-    deepBlueGray: "#313949",
-    lightBlue: "#e6ecf7",
-    accentPurple: "#a99fe2",
-    accentPink: "#e8aebc",
-    textBlueGray: "#687287",
-  },
-};
-
-const defaultConfig = {
-  palette: "aozora",
-  backgroundEnabled: false,
-  backgroundImage: "",
-  blur: 0,
-  brightness: 100,
-  maskOpacity: 34,
-  backgroundSize: "cover",
-  backgroundPosition: "center",
-  cardOpacity: 72,
-};
-
-export function applyThemeConfig(config) {
-  const next = { ...defaultConfig, ...config };
-  const palette = palettes[next.palette] || palettes.aozora;
-  const root = document.documentElement;
-  root.style.setProperty("--bg-main", palette.bgMain);
-  root.style.setProperty("--bg-mask-rgb", palette.bgMaskRgb);
-  root.style.setProperty("--primary-blue", palette.primaryBlue);
-  root.style.setProperty("--deep-blue-gray", palette.deepBlueGray);
-  root.style.setProperty("--light-blue", palette.lightBlue);
-  root.style.setProperty("--accent-purple", palette.accentPurple);
-  root.style.setProperty("--accent-pink", palette.accentPink);
-  root.style.setProperty("--text-blue-gray", palette.textBlueGray);
-  root.style.setProperty("--line-soft", `${palette.primaryBlue}29`);
-  root.style.setProperty("--bg-blur", `${next.blur}px`);
-  root.style.setProperty("--bg-brightness", `${next.brightness / 100}`);
-  root.style.setProperty("--bg-mask-opacity", `${next.maskOpacity / 100}`);
-  root.style.setProperty("--card-opacity", `${next.cardOpacity / 100}`);
-  root.style.setProperty("--bg-image", next.backgroundEnabled && next.backgroundImage ? `url("${next.backgroundImage}")` : "none");
-  root.style.setProperty("--bg-size", next.backgroundSize);
-  root.style.setProperty("--bg-position", next.backgroundPosition);
-  return next;
-}
-
-function ThemePanel() {
+function ThemePanel({ compact = false }) {
   const [open, setOpen] = useState(false);
   const [form] = Form.useForm();
   const [config, setConfig] = useState(defaultConfig);
+  const { setPaletteKey } = useThemePalette();
 
   useEffect(() => {
-    const stored = applyThemeConfig(getThemeConfig());
-    setConfig(stored);
-    form.setFieldsValue(stored);
-  }, [form]);
+    getThemeConfig().then((stored) => {
+      const applied = applyThemeConfig(stored);
+      setConfig(applied);
+      setPaletteKey(applied.palette);
+      form.setFieldsValue(applied);
+    });
+  }, [form, setPaletteKey]);
 
-  const handleValuesChange = (_, values) => {
+  const handleValuesChange = async (_, values) => {
     const next = applyThemeConfig(values);
     setConfig(next);
+    setPaletteKey(next.palette);
     try {
-      saveThemeConfig(next);
+      await saveThemeConfig(next);
     } catch (error) {
       message.error(error.message);
     }
@@ -132,10 +57,33 @@ function ThemePanel() {
     handleValuesChange(null, next);
   };
 
+  const handleDockUpload = (file) => {
+    compressImage(file)
+      .then((imageData) => {
+        const next = { ...form.getFieldsValue(), dockImage: imageData };
+        form.setFieldsValue(next);
+        handleValuesChange(null, next);
+        message.success("时钟卡背景已更新");
+      })
+      .catch(() => message.error("背景图上传失败，请换一张图片"));
+    return false;
+  };
+
+  const clearDock = () => {
+    const next = { ...form.getFieldsValue(), dockImage: "" };
+    form.setFieldsValue(next);
+    handleValuesChange(null, next);
+  };
+
   return (
     <>
-      <Button className="soft-button" icon={<BgColorsOutlined />} onClick={() => setOpen(true)}>
-        主题
+      <Button
+        icon={<BgColorsOutlined />}
+        onClick={() => setOpen(true)}
+        aria-label="打开主题设置"
+        title="主题"
+      >
+        {!compact && "主题"}
       </Button>
       <Drawer title="Aozora Desk 主题" open={open} onClose={() => setOpen(false)} width={380}>
         <Form
@@ -185,6 +133,17 @@ function ThemePanel() {
           </Form.Item>
           <Form.Item name="cardOpacity" label="内容卡片透明度">
             <Slider min={38} max={96} />
+          </Form.Item>
+          <Form.Item label="左下角时钟卡背景图" extra="建议用横图，左侧清晰、右侧自动毛玻璃淡出。不上传则用默认占位图。">
+            <Space wrap>
+              <Upload beforeUpload={handleDockUpload} showUploadList={false} accept="image/*">
+                <Button icon={<UploadOutlined />}>上传时钟卡背景</Button>
+              </Upload>
+              <Button onClick={clearDock}>恢复默认</Button>
+            </Space>
+          </Form.Item>
+          <Form.Item name="dockImage" hidden>
+            <Input />
           </Form.Item>
           <Form.Item name="backgroundSize" label="背景缩放方式">
             <Select options={[{ value: "cover", label: "Cover" }, { value: "contain", label: "Contain" }, { value: "auto", label: "Auto" }]} />

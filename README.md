@@ -1,6 +1,6 @@
 # GongkaoHelper
 
-公考学习辅助系统，支持 OCR 识题、错题库、申论 PDF 结构化与 AI 批改、番茄钟、学习管理、音乐播放器等功能。
+个人公考学习辅助系统，核心功能：统一录入器（图片 OCR / PDF / 粘贴文本）、申论 PDF 结构化与 AI 批改、三层学习规划、番茄钟、学习日志、本地音乐播放器，以及 LLM / OCR / PDF / 备份 / 主题配置。
 
 ## 技术栈
 
@@ -20,6 +20,7 @@
 cd backend
 cp .env.example .env
 # 保持 DB_DRIVER=sqlite 即可
+# 开发模式首次登录：admin / 123456
 ```
 
 如需 PostgreSQL：
@@ -71,11 +72,14 @@ curl http://localhost:21080/api/db/ping
 
 ## 文档索引
 
+完整索引见 [`docs/README.md`](docs/README.md)。
+
 | 文档 | 内容 |
 |------|------|
+| [`docs/AGENT_CONTEXT.md`](docs/AGENT_CONTEXT.md) | **AI 接手上下文** — 用于新会话快速接手、降低 token 消耗 |
 | [`docs/QUICKSTART.md`](docs/QUICKSTART.md) | **快速启动** — 启动顺序、端口、验证命令、依赖说明 |
 | [`docs/MAINTENANCE.md`](docs/MAINTENANCE.md) | **维护手册** — 目录结构、约定、API 状态、申论流程、常见坑 |
-| [`docs/TODO.md`](docs/TODO.md) | **ToDo 清单** — 待办事项与优先级 |
+| [`docs/design-system.md`](docs/design-system.md) | **前端设计系统** — token 三层架构、母题组件、清洗准则 |
 | [`backend/docs/backend-dev.md`](backend/docs/backend-dev.md) | **后端开发文档** — 数据库选择、环境变量、接口测试示例 |
 
 ## 提交前检查

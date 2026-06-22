@@ -11,11 +11,31 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
 backend/.env
 backend/data/*
 !backend/data/*.example.*
 
 backend/uploads/
+
+# Docker 部署时由 compose 挂卷生成
+/data/
+/uploads/
+
+# 构建产物与二进制
+/release/
+backend/server
+*.deb
+
+# 嵌入式 web 目录在构建时由前端 dist 填充，源码仓库保留 .gitkeep
+backend/cmd/server/web/*
+!backend/cmd/server/web/.gitkeep
+
+# Claude Code 本机配置（共享设置走 .claude/settings.json）
+.claude/settings.local.json
+
+# 本地预览环境变量
+.env.preview
 
 # Editor directories and files
 .vscode/*

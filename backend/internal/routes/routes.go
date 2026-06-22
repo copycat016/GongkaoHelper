@@ -8,13 +8,15 @@ import (
 
 	"gkweb/backend/internal/config"
 	"gkweb/backend/internal/handlers"
+	"gkweb/backend/internal/middleware"
 	"gkweb/backend/internal/services"
 )
 
-func Register(router *gin.Engine, db *gorm.DB) {
-	cfg := config.Load()
+func Register(router *gin.Engine, db *gorm.DB, cfg config.Config) {
 	healthHandler := handlers.NewHealthHandler()
 	dbHandler := handlers.NewDBHandler(db)
+	authService := services.NewAuthService(db, cfg)
+	authHandler := handlers.NewAuthHandler(authService)
 	llmHandler := handlers.NewLLMHandler(services.NewLLMService(db))
 	promptHandler := handlers.NewPromptHandler(services.NewPromptService(db))
 	pomodoroHandler := handlers.NewPomodoroHandler(services.NewPomodoroService(db))
@@ -25,6 +27,7 @@ func Register(router *gin.Engine, db *gorm.DB) {
 	backupHandler := handlers.NewBackupHandler(services.NewBackupService(db))
 	essayHandler := handlers.NewEssayHandler(services.NewEssayService(db))
 	pdfHandler := handlers.NewPDFHandler()
+	themeHandler := handlers.NewThemeHandler(services.NewThemeService(db))
 
 	// 音频文件不会被修改（文件名含时间戳），设置长缓存
 	router.Use(func(c *gin.Context) {
@@ -40,7 +43,20 @@ func Register(router *gin.Engine, db *gorm.DB) {
 		api.GET("/health", healthHandler.Health)
 		api.GET("/db/ping", dbHandler.Ping)
 
-		llm := api.Group("/llm")
+		authPublic := api.Group("/auth")
+		{
+			authPublic.POST("/login", authHandler.Login)
+		}
+
+		protected := api.Group("")
+		protected.Use(middleware.AuthRequired(db, cfg))
+
+		authProtected := protected.Group("/auth")
+		{
+			authProtected.GET("/me", authHandler.Me)
+		}
+
+		llm := protected.Group("/llm")
 		{
 			llm.GET("/providers", llmHandler.ListProviders)
 			llm.POST("/providers", llmHandler.CreateProvider)
@@ -54,7 +70,7 @@ func Register(router *gin.Engine, db *gorm.DB) {
 			llm.DELETE("/models/:id", llmHandler.DeleteModel)
 		}
 
-		prompts := api.Group("/prompts")
+		prompts := protected.Group("/prompts")
 		{
 			prompts.GET("", promptHandler.List)
 			prompts.POST("", promptHandler.Create)
@@ -62,20 +78,20 @@ func Register(router *gin.Engine, db *gorm.DB) {
 			prompts.DELETE("/:id", promptHandler.Delete)
 		}
 
-		pomodoro := api.Group("/pomodoro")
+		pomodoro := protected.Group("/pomodoro")
 		{
 			pomodoro.POST("/sessions", pomodoroHandler.CreateSession)
 			pomodoro.GET("/stats/today", pomodoroHandler.TodayStats)
 		}
 
-		logs := api.Group("/logs")
+		logs := protected.Group("/logs")
 		{
 			logs.GET("", studyHandler.ListLogs)
 			logs.GET("/stats", studyHandler.LogStats)
 			logs.POST("", studyHandler.CreateLog)
 		}
 
-		tasks := api.Group("/tasks")
+		tasks := protected.Group("/tasks")
 		{
 			tasks.GET("", taskHandler.List)
 			tasks.GET("/summary", taskHandler.Summary)
@@ -85,7 +101,7 @@ func Register(router *gin.Engine, db *gorm.DB) {
 			tasks.DELETE("/:id", taskHandler.Delete)
 		}
 
-		planning := api.Group("/planning")
+		planning := protected.Group("/planning")
 		{
 			planning.GET("/daily-tasks", taskHandler.ListDailyTasks)
 			planning.POST("/daily-tasks", taskHandler.CreateDailyTask)
@@ -95,14 +111,19 @@ func Register(router *gin.Engine, db *gorm.DB) {
 			planning.GET("/weekly-tasks", taskHandler.ListWeeklyTasks)
 			planning.POST("/weekly-tasks", taskHandler.CreateWeeklyTask)
 			planning.PUT("/weekly-tasks/:id", taskHandler.UpdateWeeklyTask)
+			planning.POST("/weekly-tasks/:id/materialize", taskHandler.MaterializeWeeklyTask)
 			planning.DELETE("/weekly-tasks/:id", taskHandler.DeleteWeeklyTask)
 			planning.GET("/stage-goals", taskHandler.ListStageGoals)
 			planning.POST("/stage-goals", taskHandler.CreateStageGoal)
 			planning.PUT("/stage-goals/:id", taskHandler.UpdateStageGoal)
 			planning.DELETE("/stage-goals/:id", taskHandler.DeleteStageGoal)
+			planning.GET("/stage-items", taskHandler.ListStageItems)
+			planning.POST("/stage-items", taskHandler.CreateStageItem)
+			planning.PUT("/stage-items/:id", taskHandler.UpdateStageItem)
+			planning.DELETE("/stage-items/:id", taskHandler.DeleteStageItem)
 		}
 
-		music := api.Group("/music")
+		music := protected.Group("/music")
 		{
 			music.GET("/playlists", musicHandler.ListPlaylists)
 			music.POST("/playlists", musicHandler.CreatePlaylist)
@@ -121,7 +142,7 @@ func Register(router *gin.Engine, db *gorm.DB) {
 			music.PUT("/playlists/:playlist_id/sort", musicHandler.UpdatePlaylistSort)
 		}
 
-		ocr := api.Group("/ocr")
+		ocr := protected.Group("/ocr")
 		{
 			ocr.GET("/engines", ocrHandler.Engines)
 			ocr.GET("/scenes", ocrHandler.Scenes)
@@ -131,12 +152,12 @@ func Register(router *gin.Engine, db *gorm.DB) {
 			ocr.POST("/recognize", ocrHandler.Recognize)
 		}
 
-		backup := api.Group("/backup")
+		backup := protected.Group("/backup")
 		{
 			backup.GET("/export", backupHandler.Export)
 		}
 
-		essay := api.Group("/essay")
+		essay := protected.Group("/essay")
 		{
 			essay.GET("/documents", essayHandler.ListDocuments)
 			essay.POST("/documents", essayHandler.CreateDocument)
@@ -156,10 +177,17 @@ func Register(router *gin.Engine, db *gorm.DB) {
 			essay.PUT("/sections/:id", essayHandler.UpdateSection)
 		}
 
-		pdf := api.Group("/pdf")
+		pdf := protected.Group("/pdf")
 		{
+			pdf.GET("/parser-info", pdfHandler.ParserInfo)
 			pdf.POST("/parse-tool", pdfHandler.ParseTool)
 			pdf.POST("/parse-test", pdfHandler.ParseTest)
+		}
+
+		theme := protected.Group("/theme")
+		{
+			theme.GET("", themeHandler.Get)
+			theme.POST("", themeHandler.Save)
 		}
 	}
 }

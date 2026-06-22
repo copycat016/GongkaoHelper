@@ -31,7 +31,7 @@ func NewLLMService(db *gorm.DB) *LLMService {
 func (s *LLMService) ListProviders(userID uint) ([]models.LLMProvider, error) {
 	var providers []models.LLMProvider
 	err := s.db.Where("user_id = ?", userID).Order("created_at desc").Find(&providers).Error
-	return providers, err
+	return SafeLLMProviders(providers), err
 }
 
 func (s *LLMService) CreateProvider(provider *models.LLMProvider) error {
@@ -47,11 +47,17 @@ func (s *LLMService) UpdateProvider(userID uint, id uint, updates *models.LLMPro
 	provider.Name = updates.Name
 	provider.ProviderType = updates.ProviderType
 	provider.BaseURL = updates.BaseURL
-	provider.APIKey = updates.APIKey
+	if strings.TrimSpace(updates.APIKey) != "" {
+		provider.APIKey = updates.APIKey
+	}
 	provider.Enabled = updates.Enabled
 	provider.Note = updates.Note
 
-	return &provider, s.db.Save(&provider).Error
+	if err := s.db.Save(&provider).Error; err != nil {
+		return nil, err
+	}
+	safe := SafeLLMProvider(provider)
+	return &safe, nil
 }
 
 func (s *LLMService) DeleteProvider(userID uint, id uint) error {
@@ -238,4 +244,30 @@ func firstString(values map[string]any, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func SafeLLMProviders(providers []models.LLMProvider) []models.LLMProvider {
+	items := make([]models.LLMProvider, 0, len(providers))
+	for _, provider := range providers {
+		items = append(items, SafeLLMProvider(provider))
+	}
+	return items
+}
+
+func SafeLLMProvider(provider models.LLMProvider) models.LLMProvider {
+	apiKey := strings.TrimSpace(provider.APIKey)
+	provider.HasAPIKey = apiKey != ""
+	provider.APIKeyMasked = maskProviderSecret(apiKey)
+	provider.APIKey = ""
+	return provider
+}
+
+func maskProviderSecret(value string) string {
+	if value == "" {
+		return ""
+	}
+	if len(value) <= 8 {
+		return "********"
+	}
+	return value[:4] + "..." + value[len(value)-4:]
 }

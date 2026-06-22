@@ -1,11 +1,7 @@
 import Pomodoro from "../components/Pomodoro";
 
 function PomodoroPage() {
-  return (
-    <div className="pomodoro-page">
-      <Pomodoro />
-    </div>
-  );
+  return <Pomodoro />;
 }
 
 export default PomodoroPage;

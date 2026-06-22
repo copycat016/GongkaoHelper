@@ -6,6 +6,8 @@ type LLMProvider struct {
 	ProviderType string `json:"provider_type" gorm:"size:60;not null;default:openai-compatible"`
 	BaseURL      string `json:"base_url" gorm:"size:500;not null"`
 	APIKey       string `json:"api_key,omitempty" gorm:"size:1000"`
+	APIKeyMasked string `json:"api_key_masked" gorm:"-"`
+	HasAPIKey    bool   `json:"has_api_key" gorm:"-"`
 	Enabled      bool   `json:"enabled" gorm:"not null;default:true"`
 	Note         string `json:"note" gorm:"size:1000"`
 }

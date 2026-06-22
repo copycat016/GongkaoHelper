@@ -10,7 +10,7 @@ import {
 } from "@ant-design/icons";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMusic } from "./MusicProvider";
+import { useMusic } from "./musicContext";
 
 function GlobalMusicBar({ collapsed = false, isMobile = false }) {
   const [open, setOpen] = useState(false);

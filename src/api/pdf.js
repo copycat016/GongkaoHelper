@@ -1,6 +1,8 @@
-import { api } from "./request";
+import { api, authHeaders } from "./request";
 
 export const parsePdf = () => api.post("/pdf/parse", null, { mock: { pages: [{ page: 1, text: "PDF 第 1 页解析文本 mock" }] } });
+
+export const getPdfParserInfo = () => api.get("/pdf/parser-info");
 
 export async function parsePdfTest(file) {
   const formData = new FormData();
@@ -8,6 +10,7 @@ export async function parsePdfTest(file) {
 
   const response = await fetch("/api/pdf/parse-test", {
     method: "POST",
+    headers: authHeaders(),
     body: formData,
   });
   const result = await response.json().catch(() => ({}));
@@ -26,6 +29,7 @@ export async function parseDocumentTool({ file, rawText, ocrJson, adapter } = {}
 
   const response = await fetch("/api/pdf/parse-tool", {
     method: "POST",
+    headers: authHeaders(),
     body: formData,
   });
   const result = await response.json().catch(() => ({}));

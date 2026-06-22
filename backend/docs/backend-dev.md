@@ -106,6 +106,17 @@ http://localhost:21073/
 
 ## 3. 测试接口
 
+除 `/api/health`、`/api/db/ping`、`/api/auth/login` 外，业务接口需要先登录并携带 Bearer Token：
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:21080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"123456"}' \
+  | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+
+curl -H "Authorization: Bearer $TOKEN" http://localhost:21080/api/llm/providers
+```
+
 健康检查：
 
 ```bash
@@ -335,6 +346,12 @@ curl -X POST http://localhost:21080/api/essay/questions/1/review \
 | --- | --- | --- |
 | `SERVER_PORT` | 后端监听端口 | `21080` |
 | `GIN_MODE` | Gin 运行模式 | `debug` |
+| `JWT_SECRET` | JWT 签名密钥；`GIN_MODE=release` 时必须设置 | 空 |
+| `JWT_EXPIRE_HOURS` | 登录 token 有效小时数 | `168` |
+| `AUTH_MODE` | 鉴权模式，当前默认单人模式 | `single` |
+| `AUTH_BOOTSTRAP_USERNAME` | 空库首次管理员账号 | `admin` |
+| `AUTH_BOOTSTRAP_PASSWORD` | 空库首次管理员密码；release 模式必须设置强密码 | 空 |
+| `AUTH_BOOTSTRAP_DISPLAY_NAME` | 空库首次管理员显示名 | `Owner` |
 | `DB_DRIVER` | 数据库类型，支持 `sqlite` / `postgres` / `postgresql` | `sqlite` |
 | `SQLITE_PATH` | SQLite 数据库文件路径 | `./data/gkweb.db` |
 | `DB_HOST` | PostgreSQL 主机 | `localhost` |

@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
-import { Button, Card, Form, Input, Modal, Select, Space, Switch, Table, Tag, message } from "antd";
+import { useCallback, useEffect, useState } from "react";
+import { Button, Form, Input, Modal, Select, Space, Switch, Table, Tag, message } from "antd";
 import { ExperimentOutlined, PlusOutlined } from "@ant-design/icons";
-import PageHeader from "../components/PageHeader";
+import { AppCard, Page, PageHeader, Toolbar } from "../components/ui";
 import { createPrompt, deletePrompt, getPrompts, updatePrompt } from "../api/prompts";
 
 const taskTypes = ["OCR 自动纠错", "题目结构化", "行测题目解析", "错题原因分析", "申论批改", "申论答案润色", "申论范文生成", "学习计划生成", "学习日志总结", "PDF 内容提取"];
@@ -14,7 +14,7 @@ function PromptSettings() {
   const [editingPrompt, setEditingPrompt] = useState(null);
   const [form] = Form.useForm();
 
-  const loadData = async (nextType = type) => {
+  const loadData = useCallback(async (nextType = type) => {
     setLoading(true);
     try {
       const prompts = await getPrompts(nextType ? { task_type: nextType } : undefined);
@@ -22,11 +22,11 @@ function PromptSettings() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [type]);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    queueMicrotask(() => loadData());
+  }, [loadData]);
 
   const handleTypeChange = (value) => {
     setType(value);
@@ -79,17 +79,17 @@ function PromptSettings() {
   ];
 
   return (
-    <div className="page-grid">
-      <PageHeader eyebrow="Prompt" title="Prompt 配置" desc="按任务类型维护长提示词，预留测试和启停入口。" />
-      <Card className="glass-card" bordered={false}>
-        <Space wrap>
+    <Page>
+      <PageHeader eyebrow="Prompt" title="Prompt 配置" description="按任务类型维护长提示词，预留测试和启停入口。" />
+      <AppCard>
+        <Toolbar>
           <Select allowClear placeholder="按任务类型筛选" value={type} onChange={handleTypeChange} options={taskTypes.map((value) => ({ value, label: value }))} style={{ width: 220 }} />
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>新增 Prompt</Button>
-        </Space>
-      </Card>
-      <Card className="glass-card" bordered={false}>
+        </Toolbar>
+      </AppCard>
+      <AppCard>
         <Table rowKey="id" columns={columns} dataSource={data} loading={loading} pagination={false} />
-      </Card>
+      </AppCard>
       <Modal width={860} title="Prompt 编辑" open={open} onCancel={() => setOpen(false)} onOk={handleSave}>
         <Form form={form} layout="vertical">
           <Form.Item name="task_type" label="任务类型" rules={[{ required: true, message: "请选择任务类型" }]}><Select options={taskTypes.map((value) => ({ value, label: value }))} /></Form.Item>
@@ -102,7 +102,7 @@ function PromptSettings() {
           <Form.Item name="enabled" label="是否启用" valuePropName="checked"><Switch defaultChecked /></Form.Item>
         </Form>
       </Modal>
-    </div>
+    </Page>
   );
 }
 

@@ -8,6 +8,7 @@ import (
 
 func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
+		&models.User{},
 		&models.LLMProvider{},
 		&models.LLMModel{},
 		&models.PromptTemplate{},
@@ -16,6 +17,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.StudyLog{},
 		&models.StudyPlan{},
 		&models.StageGoal{},
+		&models.StageItem{},
 		&models.WeeklyTask{},
 		&models.DailyTask{},
 		&models.MusicPlaylist{},
@@ -29,5 +31,6 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.EssayQuestionChunk{},
 		&models.EssaySectionRelation{},
 		&models.EssayReview{},
+		&models.ThemeConfig{},
 	)
 }

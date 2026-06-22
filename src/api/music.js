@@ -1,4 +1,4 @@
-import { api } from "./request";
+import { api, authHeaders } from "./request";
 
 export const getPlaylists = (options) => api.get("/music/playlists", undefined, options);
 export const createPlaylist = (data) => api.post("/music/playlists", data);
@@ -20,6 +20,7 @@ export async function uploadTrack({ file, playlistId }) {
 
   const response = await fetch("/api/music/tracks", {
     method: "POST",
+    headers: authHeaders(),
     body: form,
   });
   const result = await response.json();

@@ -1,6 +1,26 @@
 import { message } from "antd";
 
 const baseURL = "/api";
+const ACCESS_TOKEN_KEY = "access_token";
+
+export function getAccessToken() {
+  return localStorage.getItem(ACCESS_TOKEN_KEY) || "";
+}
+
+export function setAccessToken(token) {
+  if (token) {
+    localStorage.setItem(ACCESS_TOKEN_KEY, token);
+  }
+}
+
+export function clearAccessToken() {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+}
+
+export function authHeaders() {
+  const token = getAccessToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 function buildUrl(path, params) {
   const url = new URL(`${baseURL}${path}`, window.location.origin);
@@ -27,14 +47,19 @@ export async function request(path, options = {}) {
       signal,
       headers: {
         "Content-Type": "application/json",
+        ...authHeaders(),
         ...headers,
       },
-      body: data ? JSON.stringify(data) : undefined,
+      body: data !== undefined ? JSON.stringify(data) : undefined,
     });
 
     const result = await response.json().catch(() => ({}));
 
     if (!response.ok || result?.code > 0) {
+      if (response.status === 401 && path !== "/auth/login") {
+        clearAccessToken();
+        redirectToLogin();
+      }
       throw new Error(result?.message || "请求失败");
     }
 
@@ -50,6 +75,14 @@ export async function request(path, options = {}) {
     message.error(error.message || "网络请求异常");
     throw error;
   }
+}
+
+function redirectToLogin() {
+  if (window.location.pathname === "/login") {
+    return;
+  }
+  const next = `${window.location.pathname}${window.location.search}`;
+  window.location.assign(`/login?next=${encodeURIComponent(next)}`);
 }
 
 export const api = {

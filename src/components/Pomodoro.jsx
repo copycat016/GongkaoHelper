@@ -1,24 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Button,
+  Col,
   Input,
   InputNumber,
   Cascader,
+  Row,
+  Segmented,
   message,
-  Tag,
 } from "antd";
 import {
   CheckCircleOutlined,
-  CoffeeOutlined,
   FireOutlined,
-  LeftOutlined,
+  HourglassOutlined,
   PauseCircleOutlined,
   PlayCircleOutlined,
   ReloadOutlined,
-  RightOutlined,
   RightCircleOutlined,
   SettingOutlined,
 } from "@ant-design/icons";
+import { AppCard, Page, PageHeader, SectionHeader, StatCard } from "./ui";
 import { getTodayPomodoroStats, savePomodoroSession } from "../api/pomodoro";
 
 const PRESETS = [
@@ -123,7 +124,6 @@ function Pomodoro() {
   const [taskName, setTaskName] = useState(initialState.taskName);
   const [taskTopic, setTaskTopic] = useState(initialState.taskTopic);
   const [todayStats, setTodayStats] = useState({ focus_count: 0, focus_minutes: 0 });
-  const [drawerVisible, setDrawerVisible] = useState(false);
 
   const isFocus = mode === "focus";
   const totalSeconds = useMemo(() => (isFocus ? durations.focus : durations.break) * 60, [isFocus, durations]);
@@ -140,19 +140,19 @@ function Pomodoro() {
   };
 
   useEffect(() => {
-    loadTodayStats().catch(() => {});
+    queueMicrotask(() => loadTodayStats().catch(() => {}));
   }, []);
 
   useEffect(() => {
     if (!running) return;
     if (!timerEndAt) {
-      setTimerEndAt(Date.now() + secondsLeft * 1000);
+      queueMicrotask(() => setTimerEndAt(Date.now() + secondsLeft * 1000));
       return;
     }
     const timer = setInterval(() => {
       setSecondsLeft(Math.max(0, Math.ceil((timerEndAt - Date.now()) / 1000)));
     }, 1000);
-    setSecondsLeft(Math.max(0, Math.ceil((timerEndAt - Date.now()) / 1000)));
+    queueMicrotask(() => setSecondsLeft(Math.max(0, Math.ceil((timerEndAt - Date.now()) / 1000))));
     return () => clearInterval(timer);
   }, [running, secondsLeft, timerEndAt]);
 
@@ -165,15 +165,17 @@ function Pomodoro() {
 
   useEffect(() => {
     if (secondsLeft !== 0) return;
-    setRunning(false);
-    setTimerEndAt(null);
-    if (mode === "focus") {
-      setMode("break");
-      setSecondsLeft(durations.break * 60);
-    } else {
-      setMode("focus");
-      setSecondsLeft(durations.focus * 60);
-    }
+    queueMicrotask(() => {
+      setRunning(false);
+      setTimerEndAt(null);
+      if (mode === "focus") {
+        setMode("break");
+        setSecondsLeft(durations.break * 60);
+      } else {
+        setMode("focus");
+        setSecondsLeft(durations.focus * 60);
+      }
+    });
   }, [secondsLeft, mode, durations]);
 
   const resetToFocus = (nextDurations = durations) => {
@@ -195,7 +197,6 @@ function Pomodoro() {
     const nextDurations = { focus: preset.focusMinutes, break: preset.breakMinutes };
     setDurations(nextDurations);
     resetToFocus(nextDurations);
-    setDrawerVisible(false);
   };
 
   const handleApplyCustom = () => {
@@ -203,7 +204,6 @@ function Pomodoro() {
     setPresetKey("custom");
     setDurations(nextDurations);
     resetToFocus(nextDurations);
-    setDrawerVisible(false);
   };
 
   const handleStartPause = () => {
@@ -257,78 +257,79 @@ function Pomodoro() {
     : "休息时间：站起来、喝水、看远处，给下一轮留一点清醒。";
 
   return (
-    <div className={isFocus ? "pomo-workspace focus" : "pomo-workspace break"}>
-      <section className="pomo-stage glass-panel">
-        <div className="pomo-stage-main">
-          <div className="pomo-stage-summary">
-            <Tag icon={isFocus ? <FireOutlined /> : <CoffeeOutlined />} className={isFocus ? "pomo-mode-badge focus" : "pomo-mode-badge break"}>
-              {isFocus ? "专注模式" : "休息模式"}
-            </Tag>
-            <Tag className="pomo-mode-badge neutral">
-              今日 {todayStats.focus_count || 0} 轮 · {formatMinutes(todayStats.focus_minutes || 0)}
-            </Tag>
-            <Tag className="pomo-mode-badge neutral">
-              {running ? "计时中" : "待开始"} · {currentPreset?.desc || "自定义"}
-            </Tag>
-          </div>
+    <Page className="pomo-page">
+      <PageHeader
+        eyebrow="Focus"
+        title="番茄钟"
+        description="专注一段时间，结束后自动写入今日番茄钟记录。"
+      />
 
-          <div className="pomo-timer-wrap">
-            <div className="pomo-timer-ring" style={{ "--pomo-progress": `${percent}%` }}>
-              <div className="pomo-timer-inner">
-                <div className="pomo-timer-label">{isFocus ? "专注" : "休息"}</div>
-                <div className="pomo-timer-time">{formatTime(secondsLeft)}</div>
-              </div>
-            </div>
-          </div>
-          <div className="pomo-timer-task">{taskType} · {taskTopic || taskName || "未命名任务"}</div>
+      <Row gutter={[18, 18]} align="stretch">
+        <Col xs={24} xl={15}>
+          <AppCard className={isFocus ? "pomo-main-card focus" : "pomo-main-card break"}>
+            <Segmented
+              className="pomo-mode-switch"
+              block
+              value={mode}
+              onChange={(value) => {
+                if (value !== mode) handleSwitchMode();
+              }}
+              options={[
+                { label: "专注", value: "focus" },
+                { label: "休息", value: "break" },
+              ]}
+            />
 
-          <div className="pomo-actions">
-            <Button
-              type="primary"
-              size="large"
-              icon={running ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
-              onClick={handleStartPause}
-              className="pomo-btn-primary"
-            >
-              {running ? "暂停" : isFocus ? "开始专注" : "开始休息"}
-            </Button>
-            <Button size="large" icon={<ReloadOutlined />} onClick={handleReset} className="soft-button" title="重置" aria-label="重置" />
-            <Button size="large" icon={<RightCircleOutlined />} onClick={handleSwitchMode} className="soft-button">
-              {isFocus ? "休息" : "专注"}
-            </Button>
-            <Button size="large" icon={<CheckCircleOutlined />} onClick={handleComplete} className="soft-button">
-              完成
-            </Button>
-          </div>
-
-          <div className={isFocus ? "pomo-tip focus" : "pomo-tip break"}>
-            {tipText}
-          </div>
-        </div>
-
-        <aside className={drawerVisible ? "pomo-side-panel open" : "pomo-side-panel"}>
-          <button
-            type="button"
-            className="pomo-drawer-handle"
-            onClick={() => setDrawerVisible((value) => !value)}
-            aria-label={drawerVisible ? "收起设置面板" : "展开设置面板"}
-          >
-            {drawerVisible ? <RightOutlined /> : <LeftOutlined />}
-          </button>
-
-          <div className="pomo-drawer-content">
-            <div className="pomo-current-plan">
-              <div>
-                <span className="pomo-current-label">当前方案</span>
-                <strong>{currentPreset?.desc || "自定义"} · {durations.focus}m / {durations.break}m</strong>
+            <div className="pomo-ring" style={{ "--pomo-progress": `${percent}%` }}>
+              <div className="pomo-ring-inner">
+                <span className="pomo-ring-label">{isFocus ? "专注" : "休息"}</span>
+                <span className="pomo-time">{formatTime(secondsLeft)}</span>
+                <span className="pomo-ring-sub">
+                  {running ? "计时中" : "待开始"} · {currentPreset?.desc || "自定义"}
+                </span>
               </div>
             </div>
 
-            <div className="pomo-side-block">
-              <div className="pomo-side-title">
-                <SettingOutlined />
-                <span>时间方案</span>
-              </div>
+            <div className="pomo-task-row">
+              {taskType} · {taskTopic || taskName || "未命名任务"}
+            </div>
+
+            <div className="pomo-actions">
+              <Button
+                type="primary"
+                size="large"
+                icon={running ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
+                onClick={handleStartPause}
+                className="pomo-start-btn"
+              >
+                {running ? "暂停" : isFocus ? "开始专注" : "开始休息"}
+              </Button>
+              <Button size="large" icon={<ReloadOutlined />} onClick={handleReset} title="重置" aria-label="重置" />
+              <Button size="large" icon={<RightCircleOutlined />} onClick={handleSwitchMode}>
+                {isFocus ? "去休息" : "去专注"}
+              </Button>
+              <Button size="large" icon={<CheckCircleOutlined />} onClick={handleComplete}>
+                完成
+              </Button>
+            </div>
+
+            <p className="pomo-tip">{tipText}</p>
+          </AppCard>
+        </Col>
+
+        <Col xs={24} xl={9}>
+          <div className="pomo-aside">
+            <Row gutter={[12, 12]}>
+              <Col span={12}>
+                <StatCard label="今日番茄" value={todayStats.focus_count || 0} hint="轮专注" icon={<FireOutlined />} />
+              </Col>
+              <Col span={12}>
+                <StatCard label="专注时长" value={formatMinutes(todayStats.focus_minutes || 0)} hint="今日累计" icon={<HourglassOutlined />} />
+              </Col>
+            </Row>
+
+            <AppCard className="pomo-side-card">
+              <SectionHeader icon={<SettingOutlined />} title="时间方案" meta={`${durations.focus}m / ${durations.break}m`} />
               <div className="pomo-preset-grid">
                 {PRESETS.map((preset) => (
                   <button
@@ -352,44 +353,39 @@ function Pomodoro() {
                     <div className="pomo-input-label">休息分钟</div>
                     <InputNumber min={1} max={60} value={customBreak} onChange={(value) => setCustomBreak(Number(value || 1))} className="pomo-input" />
                   </div>
-                  <Button block icon={<SettingOutlined />} onClick={handleApplyCustom} className="soft-button">
+                  <Button block icon={<SettingOutlined />} onClick={handleApplyCustom}>
                     应用自定义
                   </Button>
                 </div>
               )}
-            </div>
+            </AppCard>
 
-            <div className="pomo-side-block pomo-task-block">
-              <div className="pomo-side-title">
-                <CheckCircleOutlined />
-                <span>学习记录</span>
-              </div>
+            <AppCard className="pomo-side-card">
+              <SectionHeader icon={<CheckCircleOutlined />} title="学习记录" />
               <div className="pomo-task-form">
-                <div className="pomo-task-inline">
-                  <Cascader
-                    value={[taskType, taskTopic].filter(Boolean)}
-                    onChange={(value) => {
-                      const [nextTaskType, nextTopic] = value || [];
-                      if (nextTaskType) setTaskType(nextTaskType);
-                      if (nextTopic) setTaskTopic(nextTopic);
-                    }}
-                    options={TASK_TOPIC_OPTIONS}
-                    placeholder="学习项目"
-                    className="pomo-select"
-                  />
-                  <Input
-                    value={taskName}
-                    onChange={(event) => setTaskName(event.target.value)}
-                    placeholder="补充说明"
-                    className="pomo-task-input"
-                  />
-                </div>
+                <Cascader
+                  value={[taskType, taskTopic].filter(Boolean)}
+                  onChange={(value) => {
+                    const [nextTaskType, nextTopic] = value || [];
+                    if (nextTaskType) setTaskType(nextTaskType);
+                    if (nextTopic) setTaskTopic(nextTopic);
+                  }}
+                  options={TASK_TOPIC_OPTIONS}
+                  placeholder="学习项目"
+                  className="pomo-select"
+                />
+                <Input
+                  value={taskName}
+                  onChange={(event) => setTaskName(event.target.value)}
+                  placeholder="补充说明"
+                  className="pomo-task-input"
+                />
               </div>
-            </div>
+            </AppCard>
           </div>
-        </aside>
-      </section>
-    </div>
+        </Col>
+      </Row>
+    </Page>
   );
 }
 

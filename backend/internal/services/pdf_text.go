@@ -24,6 +24,36 @@ type PDFTextQuality struct {
 	Reason string `json:"reason"`
 }
 
+type PDFTextEngineInfo struct {
+	PreferredEngine string `json:"preferred_engine"`
+	PreferredTool   string `json:"preferred_tool"`
+	FallbackEngine  string `json:"fallback_engine"`
+	FallbackTool    string `json:"fallback_tool"`
+	PopplerPath     string `json:"poppler_path,omitempty"`
+	Reason          string `json:"reason"`
+}
+
+func CurrentPDFTextEngineInfo() PDFTextEngineInfo {
+	if path, err := exec.LookPath("pdftotext"); err == nil {
+		return PDFTextEngineInfo{
+			PreferredEngine: "poppler",
+			PreferredTool:   "Poppler pdftotext",
+			FallbackEngine:  "go_pdf",
+			FallbackTool:    "Go PDF library (github.com/ledongthuc/pdf)",
+			PopplerPath:     path,
+			Reason:          "pdftotext is available and will be tried first",
+		}
+	}
+
+	return PDFTextEngineInfo{
+		PreferredEngine: "go_pdf",
+		PreferredTool:   "Go PDF library (github.com/ledongthuc/pdf)",
+		FallbackEngine:  "",
+		FallbackTool:    "",
+		Reason:          "pdftotext is not available, using the built-in Go PDF parser",
+	}
+}
+
 func ExtractPDFTextPages(path string) ([]PDFTextPage, error) {
 	pages, quality, _, err := ExtractPDFTextPagesForTest(path)
 	if err != nil {

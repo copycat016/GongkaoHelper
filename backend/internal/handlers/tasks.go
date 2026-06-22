@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -60,10 +62,12 @@ func (h *DailyTaskHandler) Update(c *gin.Context) {
 		return
 	}
 	var input services.DailyTaskInput
-	if err := c.ShouldBindJSON(&input); err != nil {
+	touched, err := bindJSONWithTouchedFields(c, &input)
+	if err != nil {
 		response.Error(c, http.StatusBadRequest, 40053, "invalid task payload")
 		return
 	}
+	input.Touched = touched
 	task, err := h.service.Update(userIDFromRequest(c), id, input)
 	if err != nil {
 		writeServiceError(c, err, "update task failed")
@@ -102,7 +106,7 @@ func (h *DailyTaskHandler) Delete(c *gin.Context) {
 }
 
 func (h *DailyTaskHandler) ListDailyTasks(c *gin.Context) {
-	tasks, err := h.service.ListDailyTasks(userIDFromRequest(c), c.Query("date"), c.Query("unscheduled") == "true", c.Query("weekly_task_id"))
+	tasks, err := h.service.ListDailyTasks(userIDFromRequest(c), c.Query("date"), c.Query("unscheduled") == "true", c.Query("weekly_task_id"), c.Query("deadline"))
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, 40056, err.Error())
 		return
@@ -154,10 +158,12 @@ func (h *DailyTaskHandler) UpdateStageGoal(c *gin.Context) {
 		return
 	}
 	var input services.StageGoalInput
-	if err := c.ShouldBindJSON(&input); err != nil {
+	touched, err := bindJSONWithTouchedFields(c, &input)
+	if err != nil {
 		response.Error(c, http.StatusBadRequest, 40057, "invalid stage goal payload")
 		return
 	}
+	input.Touched = touched
 	goal, err := h.service.UpdateStageGoal(userIDFromRequest(c), id, input)
 	if err != nil {
 		writeServiceError(c, err, "update stage goal failed")
@@ -179,8 +185,65 @@ func (h *DailyTaskHandler) DeleteStageGoal(c *gin.Context) {
 	response.Success(c, gin.H{"deleted": true})
 }
 
+func (h *DailyTaskHandler) ListStageItems(c *gin.Context) {
+	items, err := h.service.ListStageItems(userIDFromRequest(c), c.Query("stage_goal_id"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, 40065, err.Error())
+		return
+	}
+	response.Success(c, items)
+}
+
+func (h *DailyTaskHandler) CreateStageItem(c *gin.Context) {
+	var input services.StageItemInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.Error(c, http.StatusBadRequest, 40066, "invalid stage item payload")
+		return
+	}
+	item, err := h.service.CreateStageItem(userIDFromRequest(c), input)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, 40067, err.Error())
+		return
+	}
+	response.Success(c, item)
+}
+
+func (h *DailyTaskHandler) UpdateStageItem(c *gin.Context) {
+	id, err := uintParam(c, "id")
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, 40068, "invalid stage item id")
+		return
+	}
+	var input services.StageItemInput
+	touched, err := bindJSONWithTouchedFields(c, &input)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, 40066, "invalid stage item payload")
+		return
+	}
+	input.Touched = touched
+	item, err := h.service.UpdateStageItem(userIDFromRequest(c), id, input)
+	if err != nil {
+		writeServiceError(c, err, "update stage item failed")
+		return
+	}
+	response.Success(c, item)
+}
+
+func (h *DailyTaskHandler) DeleteStageItem(c *gin.Context) {
+	id, err := uintParam(c, "id")
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, 40068, "invalid stage item id")
+		return
+	}
+	if err := h.service.DeleteStageItem(userIDFromRequest(c), id); err != nil {
+		writeServiceError(c, err, "delete stage item failed")
+		return
+	}
+	response.Success(c, gin.H{"deleted": true})
+}
+
 func (h *DailyTaskHandler) ListWeeklyTasks(c *gin.Context) {
-	tasks, err := h.service.ListWeeklyTasks(userIDFromRequest(c), c.Query("week_start"), c.Query("stage_goal_id"))
+	tasks, err := h.service.ListWeeklyTasks(userIDFromRequest(c), c.Query("week_start"), c.Query("stage_goal_id"), c.Query("stage_item_id"))
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, 40060, err.Error())
 		return
@@ -209,16 +272,56 @@ func (h *DailyTaskHandler) UpdateWeeklyTask(c *gin.Context) {
 		return
 	}
 	var input services.WeeklyTaskInput
-	if err := c.ShouldBindJSON(&input); err != nil {
+	touched, err := bindJSONWithTouchedFields(c, &input)
+	if err != nil {
 		response.Error(c, http.StatusBadRequest, 40061, "invalid weekly task payload")
 		return
 	}
+	input.Touched = touched
 	task, err := h.service.UpdateWeeklyTask(userIDFromRequest(c), id, input)
 	if err != nil {
 		writeServiceError(c, err, "update weekly task failed")
 		return
 	}
 	response.Success(c, task)
+}
+
+func (h *DailyTaskHandler) MaterializeWeeklyTask(c *gin.Context) {
+	id, err := uintParam(c, "id")
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, 40063, "invalid weekly task id")
+		return
+	}
+	var input services.WeeklyTaskMaterializeInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.Error(c, http.StatusBadRequest, 40064, "invalid weekly task materialize payload")
+		return
+	}
+	result, err := h.service.MaterializeWeeklyTask(userIDFromRequest(c), id, input)
+	if err != nil {
+		writeServiceError(c, err, "materialize weekly task failed")
+		return
+	}
+	response.Success(c, result)
+}
+
+func bindJSONWithTouchedFields(c *gin.Context, dest any) (map[string]bool, error) {
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(body, dest); err != nil {
+		return nil, err
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, err
+	}
+	touched := make(map[string]bool, len(raw))
+	for key := range raw {
+		touched[key] = true
+	}
+	return touched, nil
 }
 
 func (h *DailyTaskHandler) DeleteWeeklyTask(c *gin.Context) {

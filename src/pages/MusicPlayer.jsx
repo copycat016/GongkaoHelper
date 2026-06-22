@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Button, Card, Col, Dropdown, Empty, Form, Image, Input, List, Modal, Pagination,
+  Button, Col, Dropdown, Empty, Form, Image, Input, List, Modal, Pagination,
   Popconfirm, Row, Segmented, Select, Slider, Spin, Tag, Tooltip, Upload, message,
 } from "antd";
 import {
@@ -14,7 +14,8 @@ import {
   deleteTrack, fetchTrackLyrics, getPlaylistTracks, getPlaylists, getTracks, lookupTrackMetadata,
   removeTrackFromPlaylist, uploadTrack,
 } from "../api/music";
-import { useMusic } from "../components/MusicProvider";
+import { useMusic } from "../components/musicContext";
+import { AppCard, Page, PageHeader, SectionHeader } from "../components/ui";
 
 const acceptTypes = ".mp3,.flac,.wav,.ogg,.m4a,.aac,audio/*";
 const ALL_TRACKS_PLAYLIST = "__all_tracks__";
@@ -151,8 +152,10 @@ function MusicPlayer() {
   }, [setTracks, setCurrentIndex]);
 
   useEffect(() => {
-    fetchPlaylists();
-    fetchTracks(ALL_TRACKS_PLAYLIST);
+    queueMicrotask(() => {
+      fetchPlaylists();
+      fetchTracks(ALL_TRACKS_PLAYLIST);
+    });
   }, [fetchPlaylists, fetchTracks]);
 
   useEffect(() => () => {
@@ -447,7 +450,7 @@ function MusicPlayer() {
         <CustomerServiceOutlined style={{ fontSize: 48, opacity: 0.4 }} />
       </div>
     );
-  }, [currentTrack?.cover_url]);
+  }, [currentTrack]);
 
   // --- 构建曲目操作菜单 ---
   // 使用 useMemo 缓存每首曲目的菜单配置，避免每次渲染都重建导致 Dropdown 重渲染
@@ -491,18 +494,23 @@ function MusicPlayer() {
 
   // --- 渲染 ---
   return (
-    <div className="page-grid music-page">
+    <Page className="music-page">
+      <PageHeader
+        eyebrow="Music"
+        title="音乐"
+        description="自习时的背景音乐：管理服务器歌单，边学边听。"
+      />
       <Row gutter={[18, 18]} className="music-layout-row">
         {/* 播放器面板 */}
         <Col xs={24} xl={15}>
-          <Card className="glass-card music-player-card" bordered={false}>
+          <AppCard className="music-player-card">
             <div className="music-player-grid">
               <div className="music-now music-studio">
                 <div className="music-focus-stage">
                   <div className="music-cover-column">
                     <div className="music-cover-frame">
                       {coverNode}
-                      <span className={`music-play-state${playing ? " playing" : ""}`}>{playing ? "Playing" : "Ready"}</span>
+                      <span className={`music-play-state${playing ? " playing" : ""}`}>{playing ? "播放中" : "待播放"}</span>
                     </div>
                     <div className="music-title-stack">
                       <div className="music-track-kicker">
@@ -581,21 +589,17 @@ function MusicPlayer() {
                 </div>
               </div>
             </div>
-          </Card>
+          </AppCard>
         </Col>
 
         {/* 歌单管理面板 */}
         <Col xs={24} xl={9}>
-          <Card
-            className="glass-card music-library-card"
-            title={(
-              <div className="music-library-title">
-                <span>服务器歌单</span>
-                <small>{tracks.length} 首 · {formatFileSize(totalSize)} · 自动 {trackPageSize} 首/页</small>
-              </div>
-            )}
-            bordered={false}
-          >
+          <AppCard className="music-library-card">
+            <SectionHeader
+              icon={<CustomerServiceOutlined />}
+              title="服务器歌单"
+              meta={`${tracks.length} 首 · ${formatFileSize(totalSize)} · 自动 ${trackPageSize} 首/页`}
+            />
             <div className="music-library-toolbar">
               <Select
                 value={playlistId}
@@ -740,7 +744,7 @@ function MusicPlayer() {
                 onChange={setTrackPage}
               />
             )}
-          </Card>
+          </AppCard>
         </Col>
       </Row>
 
@@ -880,7 +884,7 @@ function MusicPlayer() {
           </Button>
         )}
       </Modal>
-    </div>
+    </Page>
   );
 }
 
@@ -935,16 +939,6 @@ function trackMetaLine(track) {
   ].filter(Boolean).join(" · ");
 }
 
-function loopModeLabel(mode) {
-  if (mode === "single") return "单曲循环";
-  if (mode === "list") return "列表循环";
-  return "顺序播放";
-}
-
-function lyricsSourceLabel(source) {
-  if (source === "netease") return "网易云音乐";
-  return source || "本地歌词";
-}
 
 const TrackCover = memo(function TrackCover({ track, size = "small" }) {
   const cls = size === "large" ? "music-track-cover-lg" : "music-track-cover";
@@ -991,7 +985,7 @@ const AutoScrollText = memo(function AutoScrollText({ text }) {
 const LyricsPanel = memo(function LyricsPanel({ track, currentTime = 0, loading, onFetch }) {
   const scrollRef = useRef(null);
   const [visibleLineCount, setVisibleLineCount] = useState(7);
-  const lines = useMemo(() => (track?.lyrics ? parseLyrics(track.lyrics, track.lyrics_type) : []), [track?.lyrics, track?.lyrics_type]);
+  const lines = useMemo(() => (track?.lyrics ? parseLyrics(track.lyrics, track.lyrics_type) : []), [track]);
   const activeIndex = useMemo(() => activeLyricIndex(lines, currentTime), [lines, currentTime]);
   const visibleLines = useMemo(
     () => lyricWindow(lines, activeIndex, track?.lyrics_type, visibleLineCount),
@@ -1036,10 +1030,6 @@ const LyricsPanel = memo(function LyricsPanel({ track, currentTime = 0, loading,
 
   return (
     <div className="music-lyrics-panel">
-      <div className="music-lyrics-head">
-        <span>{lyricsSourceLabel(track.lyrics_source)}</span>
-        <Tag color={track.lyrics_type === "lrc" ? "purple" : "default"}>{track.lyrics_type === "lrc" ? "同步" : "纯文本"}</Tag>
-      </div>
       <div className="music-lyrics-scroll" ref={scrollRef} aria-live="polite">
         {visibleLines.map(({ line, index }) => (
           <p key={`${line.time ?? "plain"}-${index}`} data-lyric-index={index} className={index === activeIndex ? "active" : ""}>

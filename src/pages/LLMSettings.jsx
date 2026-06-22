@@ -1,14 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AutoComplete,
   Button,
-  Card,
   Checkbox,
-  Col,
   Form,
   Input,
   Modal,
-  Row,
   Select,
   Space,
   Switch,
@@ -17,7 +14,7 @@ import {
   message,
 } from "antd";
 import { PlusOutlined, ReloadOutlined } from "@ant-design/icons";
-import PageHeader from "../components/PageHeader";
+import { AppCard, FormCol, FormGrid, Page, PageHeader } from "../components/ui";
 import {
   createModel,
   createProvider,
@@ -72,7 +69,7 @@ function LLMSettings() {
     label: item.name && item.name !== item.id ? `${item.name} (${item.id})` : item.id,
   })), [remoteModels]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [providerList, modelList] = await Promise.all([
@@ -84,15 +81,15 @@ function LLMSettings() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    queueMicrotask(() => loadData());
+  }, [loadData]);
 
   const openProviderModal = (record) => {
     setEditingProvider(record || null);
-    providerForm.setFieldsValue(record || {
+    providerForm.setFieldsValue(record ? { ...record, api_key: "" } : {
       provider_type: "openai-compatible",
       enabled: true,
     });
@@ -123,7 +120,7 @@ function LLMSettings() {
       if (!options.silent) {
         message.success(`已拉取 ${items?.length || 0} 个可选模型`);
       }
-    } catch (error) {
+    } catch {
       setRemoteModels([]);
       if (!options.silent) {
         message.warning("模型列表拉取失败，可继续手动填写模型名");
@@ -178,6 +175,7 @@ function LLMSettings() {
     { title: "服务商", dataIndex: "name" },
     { title: "类型", dataIndex: "provider_type" },
     { title: "Base URL", dataIndex: "base_url" },
+    { title: "API Key", render: (_, record) => record.has_api_key ? <Tag>{record.api_key_masked}</Tag> : <Tag>未设置</Tag> },
     { title: "状态", dataIndex: "enabled", render: (value) => <Tag color={value ? "blue" : "default"}>{value ? "启用" : "停用"}</Tag> },
     { title: "备注", dataIndex: "note" },
     { title: "操作", render: (_, record) => <Space><Button size="small" onClick={() => openProviderModal(record)}>编辑</Button><Button size="small" danger onClick={() => handleDeleteProvider(record.id)}>删除</Button></Space> },
@@ -196,14 +194,14 @@ function LLMSettings() {
   ];
 
   return (
-    <div className="page-grid">
-      <PageHeader eyebrow="LLM" title="LLM 配置" desc="维护服务商、Base URL、API Key 和模型用途。" />
-      <Card className="glass-card" title="Provider 列表" extra={<Button icon={<PlusOutlined />} onClick={() => openProviderModal()}>新增 Provider</Button>} bordered={false}>
+    <Page>
+      <PageHeader eyebrow="LLM" title="LLM 配置" description="维护服务商、Base URL、API Key 和模型用途。" />
+      <AppCard title="Provider 列表" extra={<Button icon={<PlusOutlined />} onClick={() => openProviderModal()}>新增 Provider</Button>}>
         <Table rowKey="id" columns={providerColumns} dataSource={providers} loading={loading} pagination={false} />
-      </Card>
-      <Card className="glass-card" title="模型列表" extra={<Button icon={<PlusOutlined />} onClick={() => openModelModal()}>新增模型</Button>} bordered={false}>
+      </AppCard>
+      <AppCard title="模型列表" extra={<Button icon={<PlusOutlined />} onClick={() => openModelModal()}>新增模型</Button>}>
         <Table rowKey="id" columns={modelColumns} dataSource={models} loading={loading} pagination={false} scroll={{ x: 980 }} />
-      </Card>
+      </AppCard>
       <Modal
         title="Provider 表单"
         open={providerOpen}
@@ -212,31 +210,34 @@ function LLMSettings() {
         width={720}
       >
         <Form form={providerForm} layout="vertical">
-          <Row gutter={14}>
-            <Col xs={24} sm={12}>
+          <FormGrid>
+            <FormCol>
               <Form.Item name="name" label="服务商名称" rules={[{ required: true, message: "请输入服务商名称" }]}>
                 <Input placeholder="例如 OpenAI / DeepSeek / Local LLM" />
               </Form.Item>
-            </Col>
-            <Col xs={24} sm={12}>
+            </FormCol>
+            <FormCol>
               <Form.Item name="provider_type" label="服务商类型" rules={[{ required: true, message: "请选择服务商类型" }]}>
                 <Select placeholder="选择接口类型" options={providerTypeOptions} />
               </Form.Item>
-            </Col>
-          </Row>
+            </FormCol>
+          </FormGrid>
           <Form.Item name="base_url" label="Base URL" rules={[{ required: true, message: "请输入 Base URL" }]}>
             <Input placeholder="https://api.example.com/v1" />
           </Form.Item>
-          <Form.Item name="api_key" label="API Key">
-            <Input.Password placeholder="后续接后端加密保存" />
+          <Form.Item
+            name="api_key"
+            label={editingProvider?.has_api_key ? `API Key（当前 ${editingProvider.api_key_masked}）` : "API Key"}
+          >
+            <Input.Password placeholder={editingProvider ? "留空则保留当前 API Key" : "请输入 API Key"} />
           </Form.Item>
-          <Row gutter={14}>
-            <Col xs={24} sm={12}>
+          <FormGrid>
+            <FormCol>
               <Form.Item name="enabled" label="是否启用" valuePropName="checked">
                 <Switch defaultChecked />
               </Form.Item>
-            </Col>
-            <Col xs={24} sm={12}>
+            </FormCol>
+            <FormCol>
               <Form.Item name="usage" label="默认用途">
                 <Select
                   mode="multiple"
@@ -244,8 +245,8 @@ function LLMSettings() {
                   options={usageOptions}
                 />
               </Form.Item>
-            </Col>
-          </Row>
+            </FormCol>
+          </FormGrid>
           <Form.Item name="note" label="备注"><Input.TextArea rows={3} /></Form.Item>
         </Form>
       </Modal>
@@ -260,8 +261,8 @@ function LLMSettings() {
         width={760}
       >
         <Form form={modelForm} layout="vertical">
-          <Row gutter={14}>
-            <Col xs={24} sm={12}>
+          <FormGrid>
+            <FormCol>
               <Form.Item name="provider_id" label="所属服务商" rules={[{ required: true, message: "请选择 Provider" }]}>
                 <Select
                   placeholder="选择 Provider"
@@ -269,8 +270,8 @@ function LLMSettings() {
                   onChange={(value) => loadRemoteModels(value)}
                 />
               </Form.Item>
-            </Col>
-            <Col xs={24} sm={12}>
+            </FormCol>
+            <FormCol>
               <Form.Item
                 label="模型名称"
                 required
@@ -304,28 +305,28 @@ function LLMSettings() {
                   />
                 </Space.Compact>
               </Form.Item>
-            </Col>
-          </Row>
+            </FormCol>
+          </FormGrid>
           <Form.Item name="alias" label="模型别名">
             <Input placeholder="例如：高质量解析 / 快速草稿 / 本地离线" />
           </Form.Item>
-          <Row gutter={14}>
-            <Col xs={24} sm={8}>
+          <FormGrid>
+            <FormCol sm={8}>
               <Form.Item name="cost_level" label="成本等级">
                 <Select placeholder="选择成本" options={levelOptions} />
               </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
+            </FormCol>
+            <FormCol sm={8}>
               <Form.Item name="speed_level" label="速度等级">
                 <Select placeholder="选择速度" options={levelOptions} />
               </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
+            </FormCol>
+            <FormCol sm={8}>
               <Form.Item name="quality_level" label="质量等级">
                 <Select placeholder="选择质量" options={levelOptions} />
               </Form.Item>
-            </Col>
-          </Row>
+            </FormCol>
+          </FormGrid>
           <Form.Item name="usage" label="模型用途">
             <Checkbox.Group options={usageOptions} />
           </Form.Item>
@@ -334,7 +335,7 @@ function LLMSettings() {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </Page>
   );
 }
 

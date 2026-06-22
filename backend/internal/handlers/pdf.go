@@ -20,6 +20,10 @@ func NewPDFHandler() *PDFHandler {
 	return &PDFHandler{}
 }
 
+func (h *PDFHandler) ParserInfo(c *gin.Context) {
+	response.Success(c, services.CurrentPDFTextEngineInfo())
+}
+
 func (h *PDFHandler) ParseTest(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {
