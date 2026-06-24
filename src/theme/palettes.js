@@ -67,6 +67,7 @@ export const defaultConfig = {
   backgroundPosition: "center",
   cardOpacity: 72,
   dockImage: "",
+  glassBackground: false,
 };
 
 export const DEFAULT_PALETTE_KEY = "aozora";

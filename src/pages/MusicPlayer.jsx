@@ -21,12 +21,18 @@ const acceptTypes = ".mp3,.flac,.wav,.ogg,.m4a,.aac,audio/*";
 const ALL_TRACKS_PLAYLIST = "__all_tracks__";
 const DEFAULT_TRACKS_PAGE_SIZE = 8;
 const TRACK_ROW_HEIGHT = 82;
-const MIN_VISIBLE_LYRIC_LINES = 3;
-// 歌词窗口上限：保持卡拉OK式聚焦窗口，不随面板高度把整首铺满。
-const MAX_VISIBLE_LYRIC_LINES = 9;
 
 function notifyError(error, fallback) {
   message.error(error?.message || fallback);
+}
+
+// 页面标题区的主题色音符图标（呼应参考设计左上角的「带主题色音乐」表现）。
+function MusicNoteIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true">
+      <path d="M20 3.5a1 1 0 0 0-1.2-.98l-9 2A1 1 0 0 0 9 5.5v9.2A3.5 3.5 0 1 0 11 17.5V9.3l7-1.56v4.46A3.5 3.5 0 1 0 20 15.5V3.5Z" />
+    </svg>
+  );
 }
 
 function useAutoFitText(value, { max = 42, min = 24 } = {}) {
@@ -501,6 +507,7 @@ function MusicPlayer() {
         eyebrow="Music"
         title="音乐"
         description="自习时的背景音乐：管理服务器歌单，边学边听。"
+        icon={<MusicNoteIcon />}
       />
       <Row gutter={[18, 18]} className="music-layout-row">
         {/* 播放器面板 */}
@@ -514,6 +521,10 @@ function MusicPlayer() {
                       {coverNode}
                       <span className={`music-play-state${playing ? " playing" : ""}`}>{playing ? "播放中" : "待播放"}</span>
                     </div>
+                  </div>
+
+                  {/* 曲名等信息搬到歌词上方，和歌词共处一栏 */}
+                  <div className="music-now-panel">
                     <div className="music-title-stack">
                       <div className="music-track-kicker">
                         {currentTrack?.lyrics ? <Tag color="purple">{currentTrack.lyrics_type === "lrc" ? "同步歌词" : "歌词"}</Tag> : <Tag>未匹配歌词</Tag>}
@@ -527,9 +538,8 @@ function MusicPlayer() {
                             : "从右侧选择歌单开始播放"
                       }</p>
                     </div>
+                    <LyricsPanel track={currentTrack} currentTime={currentTime} loading={lyricsLoading} onFetch={() => handleFetchLyrics()} />
                   </div>
-
-                  <LyricsPanel track={currentTrack} currentTime={currentTime} loading={lyricsLoading} onFetch={() => handleFetchLyrics()} />
                 </div>
 
                 <div className="music-console">
@@ -986,33 +996,31 @@ const AutoScrollText = memo(function AutoScrollText({ text }) {
 
 const LyricsPanel = memo(function LyricsPanel({ track, currentTime = 0, loading, onFetch }) {
   const scrollRef = useRef(null);
-  const [visibleLineCount, setVisibleLineCount] = useState(7);
+  const trackRef = useRef(null);
   const lines = useMemo(() => (track?.lyrics ? parseLyrics(track.lyrics, track.lyrics_type) : []), [track]);
-  const activeIndex = useMemo(() => activeLyricIndex(lines, currentTime), [lines, currentTime]);
-  const visibleLines = useMemo(
-    () => lyricWindow(lines, activeIndex, track?.lyrics_type, visibleLineCount),
-    [lines, activeIndex, track?.lyrics_type, visibleLineCount],
+  const isSynced = track?.lyrics_type === "lrc";
+  const activeIndex = useMemo(
+    () => (isSynced ? activeLyricIndex(lines, currentTime) : -1),
+    [isSynced, lines, currentTime],
   );
 
+  // 平滑滚动：把当前句滚到容器垂直中央，整条歌词轨道用 translateY 过渡。
+  // 渲染全部行（节点稳定，不再按窗口切片重排），避免逐行硬跳带来的闪烁。
+  // 直接写 DOM 的 transform（而非 state），既省一次重渲染，也避免动画中漂移。
   useEffect(() => {
-    const node = scrollRef.current;
-    if (!node) return undefined;
-
-    const updateVisibleLineCount = () => {
-      const height = node.clientHeight;
-      if (!height) return;
-      const sample = node.querySelector("p");
-      const sampleHeight = sample?.getBoundingClientRect().height || Number.parseFloat(getComputedStyle(node).lineHeight) || 44;
-      const fitCount = Math.max(MIN_VISIBLE_LYRIC_LINES, Math.floor(height / sampleHeight));
-      const nextCount = Math.min(MAX_VISIBLE_LYRIC_LINES, fitCount);
-      setVisibleLineCount((prev) => (prev === nextCount ? prev : nextCount));
-    };
-
-    updateVisibleLineCount();
-    const observer = new ResizeObserver(updateVisibleLineCount);
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
+    const scroll = scrollRef.current;
+    const trackEl = trackRef.current;
+    if (!scroll || !trackEl) return;
+    if (!isSynced || activeIndex < 0) {
+      trackEl.style.transform = "translateY(0px)";
+      return;
+    }
+    const activeEl = trackEl.children[activeIndex];
+    if (!activeEl) return;
+    // offsetTop 不受 transform 影响，计算稳定。
+    const lineCenter = trackEl.offsetTop + activeEl.offsetTop + activeEl.offsetHeight / 2;
+    trackEl.style.transform = `translateY(${scroll.clientHeight / 2 - lineCenter}px)`;
+  }, [activeIndex, isSynced, lines]);
 
   if (!track) {
     return (
@@ -1034,11 +1042,14 @@ const LyricsPanel = memo(function LyricsPanel({ track, currentTime = 0, loading,
   return (
     <div className="music-lyrics-panel">
       <div className="music-lyrics-scroll" ref={scrollRef} aria-live="polite">
-        {visibleLines.map(({ line, index }) => (
-          <p key={`${line.time ?? "plain"}-${index}`} data-lyric-index={index} className={index === activeIndex ? "active" : ""}>
-            {line.text || "♪"}
-          </p>
-        ))}
+        {isSynced && <div className="music-lyrics-cursor" aria-hidden="true" />}
+        <div className="music-lyrics-track" ref={trackRef}>
+          {lines.map((line, index) => (
+            <p key={index} className={index === activeIndex ? "active" : ""}>
+              {line.text || "♪"}
+            </p>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -1068,24 +1079,6 @@ function activeLyricIndex(lines, currentTime) {
     if (lines[index].time > currentTime) break;
   }
   return active;
-}
-
-function lyricWindow(lines, activeIndex, type = "plain", visibleLineCount = MIN_VISIBLE_LYRIC_LINES) {
-  if (!lines.length) return [];
-  const count = Math.max(MIN_VISIBLE_LYRIC_LINES, visibleLineCount);
-  if (type !== "lrc") {
-    return lines.slice(0, count).map((line, index) => ({ line, index }));
-  }
-  const center = activeIndex >= 0 ? activeIndex : 0;
-  const before = Math.floor((count - 1) / 2);
-  const after = count - before - 1;
-  let start = Math.max(0, center - before);
-  let end = Math.min(lines.length, center + after + 1);
-  if (end - start < count) {
-    start = Math.max(0, end - count);
-    end = Math.min(lines.length, start + count);
-  }
-  return lines.slice(start, end).map((line, offset) => ({ line, index: start + offset }));
 }
 
 export default MusicPlayer;

@@ -18,6 +18,7 @@ export const getThemeConfig = async () => {
           backgroundPosition: serverConfig.background_position || "center",
           cardOpacity: serverConfig.card_opacity || 72,
           dockImage: serverConfig.dock_image || "",
+          glassBackground: serverConfig.glass_background || false,
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
         return config;
@@ -49,6 +50,7 @@ export const saveThemeConfig = async (config) => {
     background_position: config.backgroundPosition,
     card_opacity: config.cardOpacity,
     dock_image: config.dockImage,
+    glass_background: config.glassBackground,
   };
 
   return api.post("/theme", serverConfig);

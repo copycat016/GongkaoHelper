@@ -120,6 +120,7 @@ function IntakePage() {
         eyebrow="Intake"
         title="录入器"
         description="把图片、PDF、粘贴文本统一转成可检查、可修正、可流转的纯文本。"
+        icon={<ScanOutlined />}
       />
 
       <Row gutter={[18, 18]} align="stretch">

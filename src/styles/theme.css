@@ -104,6 +104,57 @@ select,
   box-shadow: var(--shadow-xs);
 }
 
+/* ============================================================
+   渐变毛玻璃背景模板（主题面板「渐变毛玻璃背景」开关）
+   开启时：在背景层叠一层随主题变化的柔和极光渐变，
+   并把主要内容卡片变成半透明磨砂玻璃。无需上传图片即可生效。
+   ============================================================ */
+:root[data-glass="on"] .aozora-bg-image,
+:root[data-glass="on"] .app-layout::before {
+  background-image:
+    radial-gradient(120% 120% at 6% -14%, color-mix(in srgb, var(--accent-purple) 88%, transparent), transparent 52%),
+    radial-gradient(115% 115% at 104% -6%, color-mix(in srgb, var(--primary-blue) 80%, transparent), transparent 50%),
+    radial-gradient(140% 128% at 52% 120%, color-mix(in srgb, var(--accent-pink) 78%, transparent), transparent 58%),
+    var(--bg-image);
+  filter: blur(var(--bg-blur)) brightness(calc(var(--bg-brightness) * 1.02)) saturate(1.25);
+}
+
+/* 关掉硬遮罩、改用很淡的白色柔光（上浅下稍重），让渐变充分透出来 */
+:root[data-glass="on"] .app-layout::after {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.2));
+}
+
+/* 主要卡片磨砂化：半透明 + 背景模糊 */
+:root[data-glass="on"] .ui-card.ant-card,
+:root[data-glass="on"] .glass-card.ant-card,
+:root[data-glass="on"] .glass-panel,
+:root[data-glass="on"] .music-player-grid {
+  background: rgba(255, 255, 255, var(--card-opacity, 0.72));
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  border-color: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 16px 40px rgba(31, 45, 80, 0.12);
+}
+
+/* 玻璃模式下卡内嵌套面板也透出底层渐变，避免出现实色色块 */
+:root[data-glass="on"] .music-cover-frame,
+:root[data-glass="on"] .music-lyrics-panel,
+:root[data-glass="on"] .music-console {
+  background: rgba(255, 255, 255, 0.42);
+}
+
+/* 玻璃模式下，所有页面标题区统一改中性：彩色渐变上品牌蓝 eyebrow + 行动色图标
+   会互相打架又糊在同色系里，改成灰字 + 干净白底图标块，整组页面观感一致。 */
+:root[data-glass="on"] .ui-eyebrow {
+  color: var(--color-text-secondary);
+}
+
+:root[data-glass="on"] .ui-page-header-icon {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+}
+
 .glass-card .ant-card-body {
   padding: var(--space-5);
 }

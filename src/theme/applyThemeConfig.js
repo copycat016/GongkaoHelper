@@ -31,6 +31,8 @@ export function applyThemeConfig(config) {
   );
   root.style.setProperty("--bg-size", next.backgroundSize);
   root.style.setProperty("--bg-position", next.backgroundPosition);
+  // 渐变毛玻璃背景模板：开关挂在 :root[data-glass]，CSS 据此叠加主题渐变 + 卡片磨砂。
+  root.dataset.glass = next.glassBackground ? "on" : "off";
   // 左下角时钟卡背景图：用户在主题面板上传后注入；未设置时由 CSS 回退到占位图 /dock-bg.jpg。
   if (next.dockImage) {
     root.style.setProperty("--idle-dock-image", `url("${next.dockImage}")`);

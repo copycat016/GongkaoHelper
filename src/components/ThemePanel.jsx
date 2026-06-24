@@ -108,6 +108,14 @@ function ThemePanel({ compact = false }) {
               }))}
             />
           </Form.Item>
+          <Form.Item
+            name="glassBackground"
+            label="渐变毛玻璃背景"
+            valuePropName="checked"
+            extra="开启后叠加一层随主题变化的柔和渐变，卡片变为半透明磨砂玻璃；无需上传图片。"
+          >
+            <Switch />
+          </Form.Item>
           <Form.Item name="backgroundEnabled" label="背景图开关" valuePropName="checked">
             <Switch />
           </Form.Item>

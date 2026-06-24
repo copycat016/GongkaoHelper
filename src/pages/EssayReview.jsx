@@ -487,6 +487,7 @@ function EssayReview() {
         eyebrow="Essay Review"
         title="申论批改"
         description="上传 PDF，LLM 自动切分材料/题目/答案，选题作答，获得分维度专业批改。"
+        icon={<HighlightOutlined />}
       />
 
       <Steps

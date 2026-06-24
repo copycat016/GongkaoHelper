@@ -16,7 +16,7 @@ import {
   Typography,
   message,
 } from "antd";
-import { PlusOutlined } from "@ant-design/icons";
+import { BarChartOutlined, PlusOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import {
   AppCard,
@@ -146,6 +146,7 @@ function StudyLogs() {
         eyebrow="Logs"
         title="学习日志"
         description="查看某一天、某周或某月的学习时长、题型统计和番茄钟完成情况。"
+        icon={<BarChartOutlined />}
       />
       <AppCard>
         <Row gutter={[16, 16]} align="middle" justify="space-between">

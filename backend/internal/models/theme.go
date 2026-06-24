@@ -15,6 +15,8 @@ type ThemeConfig struct {
 	CardOpacity        int    `json:"card_opacity" gorm:"default:72"`
 	// DockImage 是侧边栏左下角时钟卡的背景长图（base64 或 URL），随主题配置保存。
 	DockImage string `json:"dock_image" gorm:"type:text"`
+	// GlassBackground 开启「渐变毛玻璃背景」模板（无需上传图片的内置渐变 + 卡片磨砂）。
+	GlassBackground bool `json:"glass_background" gorm:"default:false"`
 }
 
 func (t *ThemeConfig) AfterFind(tx *gorm.DB) (err error) {

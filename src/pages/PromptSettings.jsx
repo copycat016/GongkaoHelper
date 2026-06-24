@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button, Form, Input, Modal, Select, Space, Switch, Table, Tag, message } from "antd";
-import { ExperimentOutlined, PlusOutlined } from "@ant-design/icons";
+import { ExperimentOutlined, MessageOutlined, PlusOutlined } from "@ant-design/icons";
 import { AppCard, Page, PageHeader, Toolbar } from "../components/ui";
 import { createPrompt, deletePrompt, getPrompts, updatePrompt } from "../api/prompts";
 
@@ -80,7 +80,7 @@ function PromptSettings() {
 
   return (
     <Page>
-      <PageHeader eyebrow="Prompt" title="Prompt 配置" description="按任务类型维护长提示词，预留测试和启停入口。" />
+      <PageHeader eyebrow="Prompt" title="Prompt 配置" description="按任务类型维护长提示词，预留测试和启停入口。" icon={<MessageOutlined />} />
       <AppCard>
         <Toolbar>
           <Select allowClear placeholder="按任务类型筛选" value={type} onChange={handleTypeChange} options={taskTypes.map((value) => ({ value, label: value }))} style={{ width: 220 }} />

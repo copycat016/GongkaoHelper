@@ -477,17 +477,8 @@
 }
 
 @media (max-width: 1199px) {
-  .music-lyrics-panel {
-    min-height: 240px;
-    max-height: none;
-  }
-
   .music-lyrics-panel.empty {
     min-height: 160px;
-  }
-
-  .music-lyrics-scroll {
-    max-height: min(42vh, 380px);
   }
 
   .music-library-card .ant-card-body {
@@ -1009,7 +1000,7 @@
   min-height: 420px;
 }.music-cover-column {
   display: grid;
-  align-content: start;
+  align-content: center;
   justify-items: stretch;
   min-width: 0;
   gap: 14px;
@@ -1017,6 +1008,15 @@
   border: 0;
   border-radius: 12px;
   background: transparent;
+}
+/* 曲名/信息 + 歌词共处右栏：标题在上、歌词为固定高度视窗 */
+.music-now-panel {
+  display: grid;
+  grid-template-rows: auto auto;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
 }.music-cover-frame {
   position: relative;
   display: grid;
@@ -1116,6 +1116,8 @@
   align-self: stretch;
   grid-template-rows: minmax(0, 1fr);
   gap: 0;
+  /* 固定的歌词视窗高度：渲染全部行后靠它 + overflow 裁出卡拉OK窗口 */
+  height: clamp(300px, 44vh, 440px);
   min-height: 0;
   max-height: none;
   padding: 0;
@@ -1143,39 +1145,53 @@
 }.music-lyrics-scroll {
   position: relative;
   z-index: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+  display: block;
   min-height: 0;
   max-height: none;
   height: 100%;
-  gap: 8px;
   overflow: hidden;
   padding: 24px 20px;
   text-align: center;
   -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 16%, #000 84%, transparent 100%);
   mask-image: linear-gradient(180deg, transparent 0, #000 16%, #000 84%, transparent 100%);
-}.music-lyrics-scroll p {
+}
+/* 固定高亮带：永远停在视窗正中央、不随歌词移动；歌词在它下方平滑滚动，
+   当前句滚到这里即被框住。高亮位置与歌词动效彻底脱钩，消除「高亮跟着往上飘」的闪烁。 */
+.music-lyrics-cursor {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 40px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  z-index: 0;
+  pointer-events: none;
+}.music-lyrics-track {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: transform 0.55s cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+}.music-lyrics-track p {
   margin: 0;
-  padding: 2px 8px;
+  padding: 3px 10px;
   color: var(--music-muted);
-  font-size: 15px;
-  line-height: 1.5;
+  font-size: 16px;
+  line-height: 1.45;
   letter-spacing: 0.2px;
   white-space: pre-wrap;
   text-align: center;
-  opacity: 0.38;
-  transform: scale(0.96);
-  transform-origin: center;
-  transition: color 0.24s ease, opacity 0.24s ease, font-size 0.24s ease, transform 0.24s ease, font-weight 0.24s ease;
-}.music-lyrics-scroll p.active {
+  opacity: 0.4;
+  /* 只过渡颜色/透明度，不动字号与位移——避免重排和「高亮平移」 */
+  transition: color 0.3s ease, opacity 0.3s ease;
+}.music-lyrics-track p.active {
   color: var(--music-ink);
   opacity: 1;
-  font-size: 20px;
-  line-height: 1.4;
   font-weight: var(--weight-black);
-  letter-spacing: 0.4px;
-  transform: scale(1);
 }.music-console {
   position: relative;
   z-index: 1;

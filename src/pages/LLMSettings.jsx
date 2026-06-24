@@ -13,7 +13,7 @@ import {
   Tag,
   message,
 } from "antd";
-import { PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import { ApiOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { AppCard, FormCol, FormGrid, Page, PageHeader } from "../components/ui";
 import {
   createModel,
@@ -195,7 +195,7 @@ function LLMSettings() {
 
   return (
     <Page>
-      <PageHeader eyebrow="LLM" title="LLM 配置" description="维护服务商、Base URL、API Key 和模型用途。" />
+      <PageHeader eyebrow="LLM" title="LLM 配置" description="维护服务商、Base URL、API Key 和模型用途。" icon={<ApiOutlined />} />
       <AppCard title="Provider 列表" extra={<Button icon={<PlusOutlined />} onClick={() => openProviderModal()}>新增 Provider</Button>}>
         <Table rowKey="id" columns={providerColumns} dataSource={providers} loading={loading} pagination={false} />
       </AppCard>

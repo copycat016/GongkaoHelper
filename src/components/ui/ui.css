@@ -31,6 +31,27 @@
   flex-wrap: wrap;
 }
 
+/* 标题区左侧：可选主题色图标块 + 文本 */
+.ui-page-header-lead {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* 带主题色的页面图标块（如音乐页左上角的音符），呼应 SectionHeader 的图标语言但更大 */
+.ui-page-header-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  border-radius: var(--radius-md);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: 24px;
+}
+
 .ui-page-header-text {
   display: grid;
   gap: var(--space-1);
