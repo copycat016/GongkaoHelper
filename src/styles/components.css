@@ -2,10 +2,10 @@
 
 .glass-card.ant-card {
   border: 1px solid var(--color-border);
-  border-radius: 12px;
-  background: #ffffff;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
   backdrop-filter: none;
-  box-shadow: 0 1px 2px rgba(24, 32, 56, 0.04);
+  box-shadow: var(--shadow-xs);
   overflow: hidden;
 }
 
@@ -17,13 +17,13 @@
 }
 
 .glass-card .ant-card-body {
-  padding: 20px;
+  padding: var(--space-5);
 }
 
 .soft-button.ant-btn {
   border-color: var(--color-border);
   color: var(--deep-blue-gray);
-  background: #ffffff;
+  background: var(--color-surface);
   font-weight: var(--weight-black);
 }
 
@@ -78,10 +78,10 @@
 .app-section-tabs > .ant-tabs-nav,
 .ai-settings-tabs > .ant-tabs-nav {
   margin-bottom: 18px;
-  padding: 4px;
+  padding: var(--space-1);
   border: 1px solid var(--color-border);
-  border-radius: 12px;
-  background: #ffffff;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
   backdrop-filter: none;
   box-shadow: none;
 }
@@ -105,7 +105,8 @@
   padding: 8px 10px;
   border-radius: 9px;
   color: var(--text-blue-gray);
-  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+  transition: background var(--transition-fast), color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .app-section-tabs .ant-tabs-tab-active,
@@ -125,7 +126,7 @@
 
 @media (max-width: 1199px) {
   .glass-card.ant-card {
-    border-radius: 16px;
+    border-radius: var(--radius-lg);
   }
 
   .glass-card .ant-card-body {
@@ -173,7 +174,7 @@
 
   .app-section-tabs > .ant-tabs-nav,
 .ai-settings-tabs > .ant-tabs-nav {
-    border-radius: 16px;
+    border-radius: var(--radius-lg);
     padding: 5px;
   }
 

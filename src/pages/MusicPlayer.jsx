@@ -22,6 +22,8 @@ const ALL_TRACKS_PLAYLIST = "__all_tracks__";
 const DEFAULT_TRACKS_PAGE_SIZE = 8;
 const TRACK_ROW_HEIGHT = 82;
 const MIN_VISIBLE_LYRIC_LINES = 3;
+// 歌词窗口上限：保持卡拉OK式聚焦窗口，不随面板高度把整首铺满。
+const MAX_VISIBLE_LYRIC_LINES = 9;
 
 function notifyError(error, fallback) {
   message.error(error?.message || fallback);
@@ -1001,7 +1003,8 @@ const LyricsPanel = memo(function LyricsPanel({ track, currentTime = 0, loading,
       if (!height) return;
       const sample = node.querySelector("p");
       const sampleHeight = sample?.getBoundingClientRect().height || Number.parseFloat(getComputedStyle(node).lineHeight) || 44;
-      const nextCount = Math.max(MIN_VISIBLE_LYRIC_LINES, Math.floor(height / sampleHeight));
+      const fitCount = Math.max(MIN_VISIBLE_LYRIC_LINES, Math.floor(height / sampleHeight));
+      const nextCount = Math.min(MAX_VISIBLE_LYRIC_LINES, fitCount);
       setVisibleLineCount((prev) => (prev === nextCount ? prev : nextCount));
     };
 

@@ -1,20 +1,51 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Spin } from "antd";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import AppLayout from "./components/AppLayout";
 import { MusicProvider } from "./components/MusicProvider";
 import ProtectedRoute from "./components/ProtectedRoute";
 
-const AISettings = lazy(() => import("./pages/AISettings"));
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const EssayReview = lazy(() => import("./pages/EssayReview"));
-const IntakePage = lazy(() => import("./pages/IntakePage"));
-const LLMSettings = lazy(() => import("./pages/LLMSettings"));
-const Login = lazy(() => import("./pages/Login"));
-const MusicPlayer = lazy(() => import("./pages/MusicPlayer"));
-const PomodoroPage = lazy(() => import("./pages/PomodoroPage"));
-const PromptSettings = lazy(() => import("./pages/PromptSettings"));
-const StudyCenter = lazy(() => import("./pages/StudyCenter"));
+// 每个页面单独打包成 chunk（首屏轻量）；importer 函数同时用于 lazy() 和后台预取。
+const importers = {
+  AISettings: () => import("./pages/AISettings"),
+  Dashboard: () => import("./pages/Dashboard"),
+  EssayReview: () => import("./pages/EssayReview"),
+  IntakePage: () => import("./pages/IntakePage"),
+  LLMSettings: () => import("./pages/LLMSettings"),
+  Login: () => import("./pages/Login"),
+  MusicPlayer: () => import("./pages/MusicPlayer"),
+  PomodoroPage: () => import("./pages/PomodoroPage"),
+  PromptSettings: () => import("./pages/PromptSettings"),
+  StudyCenter: () => import("./pages/StudyCenter"),
+};
+
+const AISettings = lazy(importers.AISettings);
+const Dashboard = lazy(importers.Dashboard);
+const EssayReview = lazy(importers.EssayReview);
+const IntakePage = lazy(importers.IntakePage);
+const LLMSettings = lazy(importers.LLMSettings);
+const Login = lazy(importers.Login);
+const MusicPlayer = lazy(importers.MusicPlayer);
+const PomodoroPage = lazy(importers.PomodoroPage);
+const PromptSettings = lazy(importers.PromptSettings);
+const StudyCenter = lazy(importers.StudyCenter);
+
+// 应用挂载后趁空闲把其余页面 chunk 预取进缓存，点击切换页面时即时呈现。
+function usePrefetchRoutes() {
+  useEffect(() => {
+    const prefetch = () => {
+      Object.values(importers).forEach((load) => {
+        load().catch(() => {});
+      });
+    };
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(prefetch, { timeout: 2000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const timer = window.setTimeout(prefetch, 1500);
+    return () => window.clearTimeout(timer);
+  }, []);
+}
 
 function LazyPage({ component: Component }) {
   return (
@@ -25,6 +56,7 @@ function LazyPage({ component: Component }) {
 }
 
 function AppRoutes() {
+  usePrefetchRoutes();
   return (
     <BrowserRouter>
       <Routes>

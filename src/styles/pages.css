@@ -37,14 +37,14 @@
   color: #ffffff;
   background: var(--primary-blue);
   font-size: 20px;
-  font-weight: 900;
+  font-weight: var(--weight-black);
 }
 
 .login-brand h1 {
   margin: 0;
   color: var(--deep-blue-gray);
   font-size: 24px;
-  font-weight: 900;
+  font-weight: var(--weight-black);
   line-height: 1.1;
 }
 
@@ -195,7 +195,7 @@
 .pdf-test-page-title {
   margin-bottom: 8px;
   color: var(--deep-blue-gray);
-  font-weight: 900;
+  font-weight: var(--weight-black);
 }
 
 .pdf-test-page pre {
@@ -218,7 +218,7 @@
   max-width: 100%;
   padding: 0;
   color: var(--deep-blue-gray);
-  font-weight: 900;
+  font-weight: var(--weight-black);
   text-align: left;
   white-space: normal;
 }
@@ -770,7 +770,7 @@
 
 .essay-mini-stat .ant-statistic-content {
   color: var(--deep-blue-gray);
-  font-weight: 900;
+  font-weight: var(--weight-black);
 }
 
 .essay-chunk-text {
@@ -811,7 +811,7 @@
 
 .essay-score-card .ant-statistic-content {
   color: var(--deep-blue-gray);
-  font-weight: 900;
+  font-weight: var(--weight-black);
 }
 
 .essay-result-summary {

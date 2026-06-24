@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Form, Tabs, message } from "antd";
+import { Form, Progress, message } from "antd";
 import { CalendarOutlined, FieldTimeOutlined, FlagOutlined } from "@ant-design/icons";
-import { Page, PageHeader } from "../components/ui";
+import { Page } from "../components/ui";
 import { getTodayPomodoroStats } from "../api/pomodoro";
 import { getLogStats, getLogs } from "../api/logs";
 import {
@@ -25,6 +25,7 @@ import { StageTab, TodayTab, WeekTab } from "./dashboard/DashboardSections";
 import {
   endOfWeek,
   formatDateKey,
+  formatMinutes,
   fromFormValues,
   getDeadlineDate,
   isSameDate,
@@ -32,6 +33,33 @@ import {
   startOfWeek,
   toFormValues,
 } from "./dashboard/dashboardUtils";
+
+// 主题色双色进度条（随主题切换），用于一体化指标条里的进度型指标。
+const PROGRESS_COLOR = { from: "var(--color-brand)", to: "var(--color-accent)" };
+
+// 一体化横向指标条：每段 = 标签 + 数值 + 可选进度/说明，靠 1px 分隔线分段。
+function MetricBar({ metrics }) {
+  return (
+    <div className="dashboard-metricbar">
+      {metrics.map((metric) => (
+        <div className="dashboard-metric" key={metric.label}>
+          <span className="dashboard-metric-label">{metric.label}</span>
+          <strong className="dashboard-metric-value">{metric.value}</strong>
+          {metric.progress != null && (
+            <Progress
+              className="dashboard-metric-progress"
+              percent={metric.progress}
+              showInfo={false}
+              size="small"
+              strokeColor={PROGRESS_COLOR}
+            />
+          )}
+          {metric.hint && <span className="dashboard-metric-hint">{metric.hint}</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function Dashboard() {
   const [now, setNow] = useState(() => new Date());
@@ -47,6 +75,7 @@ function Dashboard() {
   const [weeklyTitle, setWeeklyTitle] = useState("");
   const [stageTitle, setStageTitle] = useState("");
   const [detailModal, setDetailModal] = useState({ open: false, type: "daily", item: null });
+  const [activeSection, setActiveSection] = useState("today");
   const [form] = Form.useForm();
 
   const today = useMemo(() => formatDateKey(now), [now]);
@@ -106,6 +135,7 @@ function Dashboard() {
   const independentWeeklyTasks = weeklyTasks.filter((task) => !task.stage_goal_id && task.execute_mode !== "ddl_only");
   const weeklyInboxTasks = weeklyTasks.filter((task) => task.execute_mode === "ddl_only");
   const weeklyDoneCount = weeklyTasks.filter((task) => task.status === "done" || task.progress_percent >= 100).length;
+  const weeklyToBreakDownCount = weeklyTasks.filter((task) => !task.daily_total).length;
   const weeklyProgressPercent = weeklyTasks.length
     ? Math.round(weeklyTasks.reduce((sum, task) => sum + (task.progress_percent || 0), 0) / weeklyTasks.length)
     : 0;
@@ -260,93 +290,117 @@ function Dashboard() {
     }
   };
 
+  const sections = [
+    {
+      key: "today",
+      icon: <CalendarOutlined />,
+      label: "日计划",
+      metrics: [
+        {
+          label: "今日完成",
+          value: `${doneCount} / ${totalCount || 0}`,
+          progress: completionPercent,
+          hint: `${completionPercent}% · 未完成 ${pendingCount}`,
+        },
+        { label: "专注时长", value: formatMinutes(focusMinutes), hint: "今日累计" },
+        { label: "番茄", value: `${focusCount}`, hint: "完成段数" },
+        { label: "主修", value: mainSubject || "-", hint: "按时长统计" },
+      ],
+      content: (
+        <TodayTab
+          dailyTasks={dailyTasks}
+          dailyTitle={dailyTitle}
+          pendingCount={pendingCount}
+          recentLogs={recentLogs}
+          todayDeadlineItems={todayDeadlineItems}
+          onDailyTitleChange={setDailyTitle}
+          onAddDaily={addDailyFast}
+          onToggleDaily={toggleDaily}
+          onEditDaily={(task) => openDetail("daily", task)}
+          onDeleteDaily={(task) => removeItem("daily", task)}
+          onEditWeekly={(task) => openDetail("weekly", task)}
+          onArrangeWeekly={arrangeWeeklyToToday}
+          onCreateDaily={() => openDetail("daily")}
+        />
+      ),
+    },
+    {
+      key: "week",
+      icon: <FieldTimeOutlined />,
+      label: "周计划",
+      metrics: [
+        { label: "本周完成", value: `${weeklyProgressPercent}%`, progress: weeklyProgressPercent },
+        { label: "本周任务", value: `${weeklyTasks.length}`, hint: `${weekStart} ~ ${weekEnd}` },
+        { label: "已完成", value: `${weeklyDoneCount}`, hint: "本周达成" },
+        { label: "待拆解", value: `${weeklyToBreakDownCount}`, hint: "尚未排期" },
+      ],
+      content: (
+        <WeekTab
+          weeklyTitle={weeklyTitle}
+          stageLinkedWeeklyTasks={stageLinkedWeeklyTasks}
+          independentWeeklyTasks={independentWeeklyTasks}
+          weeklyInboxTasks={weeklyInboxTasks}
+          inboxTasks={inboxTasks}
+          stageGoals={stageGoals}
+          onWeeklyTitleChange={setWeeklyTitle}
+          onAddWeekly={addWeeklyFast}
+          onCreateWeekly={() => openDetail("weekly")}
+          onEditWeekly={(task) => openDetail("weekly", task)}
+          onDeleteWeekly={(task) => removeItem("weekly", task)}
+          onArrangeWeekly={arrangeWeeklyToToday}
+          onToggleDaily={toggleDaily}
+          onEditDaily={(task) => openDetail("daily", task)}
+          onDeleteDaily={(task) => removeItem("daily", task)}
+          onCreateInboxDaily={() => openDetail("daily", null, { defaultDate: false })}
+        />
+      ),
+    },
+    {
+      key: "stage",
+      icon: <FlagOutlined />,
+      label: "长期规划",
+      metrics: [
+        { label: "整体推进", value: `${stageProgressPercent}%`, progress: stageProgressPercent },
+        { label: "目标总数", value: `${stageGoals.length}`, hint: "长期目标" },
+        { label: "进行中", value: `${activeStageCount}`, hint: "待推进" },
+        { label: "已完成", value: `${completedStageCount}`, hint: "已达成" },
+      ],
+      content: (
+        <StageTab
+          stageTitle={stageTitle}
+          stageGoals={stageGoals}
+          onStageTitleChange={setStageTitle}
+          onAddStage={addStageFast}
+          onCreateStage={() => openDetail("stage")}
+          onEditStage={(goal) => openDetail("stage", goal)}
+          onDeleteStage={(goal) => removeItem("stage", goal)}
+        />
+      ),
+    },
+  ];
+  const activeIndex = Math.max(sections.findIndex((s) => s.key === activeSection), 0);
+
   return (
     <Page className="dashboard-page">
-      <PageHeader
-        eyebrow="Overview"
-        title="总览"
-        description="把长期目标拆到每周，再落到今天真正要完成的事。"
-      />
-      <Tabs
-        className="dashboard-tabs app-section-tabs"
-        items={[
-          {
-            key: "today",
-            label: <span className="dashboard-tab-label"><CalendarOutlined />日计划</span>,
-            children: (
-              <TodayTab
-                now={now}
-                dailyTasks={dailyTasks}
-                dailyTitle={dailyTitle}
-                doneCount={doneCount}
-                totalCount={totalCount}
-                pendingCount={pendingCount}
-                completionPercent={completionPercent}
-                focusMinutes={focusMinutes}
-                focusCount={focusCount}
-                mainSubject={mainSubject}
-                recentLogs={recentLogs}
-                todayDeadlineItems={todayDeadlineItems}
-                onDailyTitleChange={setDailyTitle}
-                onAddDaily={addDailyFast}
-                onToggleDaily={toggleDaily}
-                onEditDaily={(task) => openDetail("daily", task)}
-                onDeleteDaily={(task) => removeItem("daily", task)}
-                onEditWeekly={(task) => openDetail("weekly", task)}
-                onArrangeWeekly={arrangeWeeklyToToday}
-                onCreateDaily={() => openDetail("daily")}
-              />
-            ),
-          },
-          {
-            key: "week",
-            label: <span className="dashboard-tab-label"><FieldTimeOutlined />周计划</span>,
-            children: (
-              <WeekTab
-                weekStart={weekStart}
-                weekEnd={weekEnd}
-                weeklyTitle={weeklyTitle}
-                weeklyTasks={weeklyTasks}
-                stageLinkedWeeklyTasks={stageLinkedWeeklyTasks}
-                independentWeeklyTasks={independentWeeklyTasks}
-                weeklyInboxTasks={weeklyInboxTasks}
-                inboxTasks={inboxTasks}
-                stageGoals={stageGoals}
-                weeklyProgressPercent={weeklyProgressPercent}
-                weeklyDoneCount={weeklyDoneCount}
-                onWeeklyTitleChange={setWeeklyTitle}
-                onAddWeekly={addWeeklyFast}
-                onCreateWeekly={() => openDetail("weekly")}
-                onEditWeekly={(task) => openDetail("weekly", task)}
-                onDeleteWeekly={(task) => removeItem("weekly", task)}
-                onArrangeWeekly={arrangeWeeklyToToday}
-                onToggleDaily={toggleDaily}
-                onEditDaily={(task) => openDetail("daily", task)}
-                onDeleteDaily={(task) => removeItem("daily", task)}
-                onCreateInboxDaily={() => openDetail("daily", null, { defaultDate: false })}
-              />
-            ),
-          },
-          {
-            key: "stage",
-            label: <span className="dashboard-tab-label"><FlagOutlined />长期规划</span>,
-            children: (
-              <StageTab
-                stageTitle={stageTitle}
-                stageGoals={stageGoals}
-                activeStageCount={activeStageCount}
-                completedStageCount={completedStageCount}
-                stageProgressPercent={stageProgressPercent}
-                onStageTitleChange={setStageTitle}
-                onAddStage={addStageFast}
-                onCreateStage={() => openDetail("stage")}
-                onEditStage={(goal) => openDetail("stage", goal)}
-                onDeleteStage={(goal) => removeItem("stage", goal)}
-              />
-            ),
-          },
-        ]}
-      />
+      <section className="dashboard-console">
+        <div className="dashboard-console-tabs" role="tablist" aria-label="计划视图">
+          {sections.map((section) => (
+            <button
+              key={section.key}
+              type="button"
+              role="tab"
+              aria-selected={section.key === activeSection}
+              className={`dashboard-console-tab${section.key === activeSection ? " is-active" : ""}`}
+              onClick={() => setActiveSection(section.key)}
+            >
+              {section.icon}
+              <span>{section.label}</span>
+            </button>
+          ))}
+        </div>
+        <MetricBar metrics={sections[activeIndex].metrics} />
+      </section>
+      <div className="dashboard-workspace-main">{sections[activeIndex].content}</div>
 
       <PlanningModal
         modal={detailModal}

@@ -6,48 +6,104 @@
   min-width: 0;
 }
 
-/* ---------- 标签栏（药丸，active 走行动色） ---------- */
-.dashboard-tabs.app-section-tabs > .ant-tabs-nav {
-  width: fit-content;
-  max-width: 100%;
-  padding: var(--space-1);
-  border-color: var(--color-border);
-  border-radius: var(--radius-md);
+/* ---------- 顶部控制台：小 tab + 一体化横向指标条 ---------- */
+.dashboard-console {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: none;
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
 }
 
-.dashboard-tabs.app-section-tabs .ant-tabs-nav-list {
-  width: auto;
+.dashboard-console-tabs {
+  display: flex;
   gap: var(--space-1);
-}
-
-.dashboard-tabs.app-section-tabs .ant-tabs-tab {
-  flex: 0 0 auto;
-  min-width: 0;
-  min-height: 34px;
   padding: var(--space-2) var(--space-3);
-  color: var(--color-text-secondary);
-  font-weight: var(--weight-black);
+  border-bottom: 1px solid var(--color-border-soft);
+  overflow-x: auto;
 }
 
-.dashboard-tabs.app-section-tabs .ant-tabs-tab-active {
-  background: var(--color-accent-soft);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 22%, transparent);
-}
-
-.dashboard-tabs.app-section-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
-  color: var(--color-accent) !important;
-}
-
-.dashboard-tabs > .ant-tabs-content-holder {
-  min-width: 0;
-}
-
-.dashboard-tab-label {
+.dashboard-console-tab {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  flex: 0 0 auto;
+  padding: var(--space-2) var(--space-4);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-sm);
+  font-weight: var(--weight-bold);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.dashboard-console-tab .anticon {
+  font-size: 14px;
+}
+
+.dashboard-console-tab:hover {
+  color: var(--color-text-primary);
+}
+
+.dashboard-console-tab.is-active {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+/* 一体化横向指标条：等分分段，靠左侧 1px 细线分隔 */
+.dashboard-metricbar {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.dashboard-metric {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+  border-left: 1px solid var(--color-border-soft);
+}
+
+.dashboard-metric:first-child {
+  border-left: none;
+}
+
+.dashboard-metric-label {
+  display: block;
+  color: var(--color-text-secondary);
+  font-size: var(--font-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.dashboard-metric-value {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--color-text-primary);
+  font-size: var(--font-xl);
+  font-weight: var(--weight-black);
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-metric-progress.ant-progress {
+  margin: var(--space-2) 0 0;
+  line-height: 1;
+}
+
+.dashboard-metric-hint {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-xs);
+  font-weight: var(--weight-medium);
+}
+
+.dashboard-workspace-main {
+  min-width: 0;
 }
 
 /* ---------- 每个 Tab 的纵向堆叠 ---------- */
@@ -58,41 +114,40 @@
   gap: var(--space-4);
 }
 
-/* ---------- 问候条（弱化时钟，无装饰符号） ---------- */
-.dashboard-greeting {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
+/* ---------- 页面主视觉（日期 kicker + 大号问候，取代页面说明） ---------- */
+.dashboard-hero {
+  display: grid;
+  gap: var(--space-2);
+  padding-bottom: var(--space-1);
+}
+
+.dashboard-hero-eyebrow {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
   gap: var(--space-3);
-}
-
-.dashboard-greeting strong {
-  color: var(--color-text-primary);
-  font-size: var(--font-md);
-  font-weight: var(--weight-black);
-}
-
-.dashboard-greeting span {
-  color: var(--color-text-secondary);
-  font-size: var(--font-sm);
-  font-weight: var(--weight-semibold);
+  color: var(--color-brand);
+  font-size: var(--font-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
 }
 
-/* StatCard hint 内嵌的细进度条 */
-.dashboard-stat-progress {
-  display: grid;
-  gap: 4px;
+.dashboard-hero-eyebrow::before {
+  content: "";
+  width: 22px;
+  height: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
 }
 
-.dashboard-stat-progress .ant-progress {
+.dashboard-hero-title {
   margin: 0;
-  line-height: 1;
-}
-
-.dashboard-stat-progress span {
-  color: var(--color-text-secondary);
-  font-size: var(--font-xs);
+  color: var(--color-text-primary);
+  font-size: var(--font-2xl);
+  font-weight: var(--weight-black);
+  line-height: var(--leading-tight);
+  letter-spacing: -0.01em;
 }
 
 /* ---------- 双栏规划布局 ---------- */
@@ -571,62 +626,6 @@
   text-align: center;
 }
 
-/* ---------- 洞察行 ---------- */
-.dashboard-insight-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-4);
-}
-
-.dashboard-insight-card {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--space-3);
-  min-height: 54px;
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-xs);
-}
-
-.dashboard-insight-icon {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
-  place-items: center;
-  border-radius: var(--radius-sm);
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
-  font-size: var(--font-md);
-}
-
-.dashboard-insight-card strong,
-.dashboard-insight-card span:not(.dashboard-insight-icon) {
-  display: block;
-  min-width: 0;
-}
-
-.dashboard-insight-card strong {
-  color: var(--color-text-primary);
-  font-size: var(--font-sm);
-  font-weight: var(--weight-black);
-  line-height: 1.2;
-}
-
-.dashboard-insight-card span:not(.dashboard-insight-icon) {
-  margin-top: 3px;
-  color: var(--color-text-secondary);
-  font-size: var(--font-xs);
-  font-weight: var(--weight-medium);
-  line-height: 1.35;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* ---------- 滚动条 ---------- */
 .dashboard-today-tasks-panel .dashboard-task-list::-webkit-scrollbar,
 .dashboard-today-side .dashboard-plan-content::-webkit-scrollbar,
@@ -667,8 +666,7 @@
 }
 
 @media (max-width: 767px) {
-  .dashboard-stage-grid,
-  .dashboard-insight-row {
+  .dashboard-stage-grid {
     grid-template-columns: 1fr;
   }
 
@@ -695,8 +693,16 @@
     word-break: break-word;
   }
 
-  .dashboard-tabs.app-section-tabs > .ant-tabs-nav {
-    width: fit-content;
-    max-width: 100%;
+  /* 窄屏：一体化指标条折成两列 */
+  .dashboard-metric {
+    flex: 1 0 50%;
+  }
+
+  .dashboard-metric:nth-child(odd) {
+    border-left: none;
+  }
+
+  .dashboard-metric:nth-child(n + 3) {
+    border-top: 1px solid var(--color-border-soft);
   }
 }
